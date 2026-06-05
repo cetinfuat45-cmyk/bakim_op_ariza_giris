@@ -428,24 +428,23 @@ function onScanSuccess(decodedText) {
     // 1. Hemen kamerayı kapat
     closeQRModal();
     
-    // 2. Metni Parçala (Örn: "JETCO FREZE-351321-8" -> "JETCO FREZE")
-    let machineName = decodedText;
-    if (decodedText.includes('-')) {
-        machineName = decodedText.split('-')[0].trim();
-    }
+    // 2. Taranan metni büyük harfe çevir ve boşlukları al
+    const scannedText = decodedText.trim().toLocaleUpperCase('tr-TR');
     
     // 3. Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
+    // Makine adı QR kodun içinde GEÇİYORSA (includes) veya birebir EŞİTSE eşleşmiş say.
+    // Bu sayede "CNC-TORNA-1234" okunduğunda "CNC-TORNA" makinesi başarıyla bulunur.
     const matchedFault = currentOpenFaults.find(f => {
         if (!f.machine) return false;
-        // İsimleri tamamen büyük harf ve boşluksuz hale getirip daha güvenli arama yapabiliriz
-        return f.machine.trim().toLocaleUpperCase('tr-TR') === machineName.toLocaleUpperCase('tr-TR');
+        const dbMachine = f.machine.trim().toLocaleUpperCase('tr-TR');
+        return scannedText.includes(dbMachine) || scannedText === dbMachine;
     });
     
     // 4. Sonuç değerlendirmesi
     if (matchedFault) {
         openInterventionForm(matchedFault);
     } else {
-        alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nOkunan: ${machineName}\nLütfen listede kaydı olan arızalı makineyi okuttuğunuzdan emin olun.`);
+        alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nKameranın Okuduğu QR Metni: "${decodedText}"\n\nSistem okunan bu kodun içinde açık arızası olan bir makine adı bulamadı. Lütfen listedeki makine adlarıyla etiketteki adın aynı olup olmadığını kontrol edin.`);
     }
 }
 
