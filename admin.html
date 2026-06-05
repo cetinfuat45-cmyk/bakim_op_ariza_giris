@@ -147,6 +147,22 @@
 
         <hr style="border-color: var(--border-color); margin: 2rem 0;">
 
+        <h2 class="section-title">📂 Arşivleme ve Temizlik</h2>
+        <div class="add-form" style="background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.3);">
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0;">Kapalı (tamamlanmış) arızaları Excel'e aktarıp sistemden silin. Sayfa açık kaldığı sürece belirlenen saatte otomatik çalışır.</p>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="time" id="auto-export-time" style="margin-bottom: 0; width: 100%; background: var(--surface-color);">
+                <button onclick="saveAutoExportTime()" style="background: var(--primary); color: white; border: none; border-radius: 6px; padding: 0 1rem; font-weight: bold; cursor: pointer; white-space: nowrap;">Zamanı Kaydet</button>
+            </div>
+            
+            <button onclick="exportAndCleanClosedFaults()" id="btn-manual-export" style="width: 100%; padding: 1rem; background: var(--danger); color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 1.1rem; cursor: pointer;">
+                🚀 ŞİMDİ AKTAR VE SİL
+            </button>
+        </div>
+
+        <hr style="border-color: var(--border-color); margin: 2rem 0;">
+
         <!-- EXCEL'DEN ZORLA ÇEKME (Eğer biri excelden elle değiştirirse) -->
         <button id="btn-fetch" class="btn-fetch" onclick="fetchFromExcel()">
             ⬇️ Sadece Excel'den Çek (Mevcut durumu Excel'e eşitler)

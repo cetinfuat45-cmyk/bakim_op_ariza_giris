@@ -793,8 +793,18 @@ function joinAsHelper(faultId) {
     btn.innerText = "⏳ Katılınıyor...";
     btn.disabled = true;
 
+    const joinLog = {
+        operator: loggedInOperator.name,
+        helpers: [],
+        durationMin: 0,
+        actionTaken: "Yardıma katıldı",
+        status: "Yardımcı",
+        timestamp: new Date().toISOString()
+    };
+
     db.collection('arizalar').doc(faultId).update({
-        helpers: firebase.firestore.FieldValue.arrayUnion(loggedInOperator.name)
+        helpers: firebase.firestore.FieldValue.arrayUnion(loggedInOperator.name),
+        interventions: firebase.firestore.FieldValue.arrayUnion(joinLog)
     }).then(() => {
         alert("✅ Başarıyla arızaya yardımcı olarak katıldınız!");
         closeFaultSelectionModal();
@@ -817,8 +827,31 @@ function leaveHelper(faultId) {
     btn.innerText = "⏳ Ayrılıyorsunuz...";
     btn.disabled = true;
 
+    const fault = currentOpenFaults.find(f => f.id === faultId);
+    let durationMin = 0;
+    if (fault && fault.interventions) {
+        // Find the LAST time this operator joined
+        const userLogs = fault.interventions.filter(i => i.operator === loggedInOperator.name && i.actionTaken === "Yardıma katıldı");
+        if (userLogs.length > 0) {
+            const lastJoin = userLogs[userLogs.length - 1];
+            const startTime = new Date(lastJoin.timestamp).getTime();
+            const endTime = new Date().getTime();
+            durationMin = Math.max(1, Math.round((endTime - startTime) / 60000));
+        }
+    }
+
+    const leaveLog = {
+        operator: loggedInOperator.name,
+        helpers: [],
+        durationMin: durationMin,
+        actionTaken: "Yardımdan ayrıldı",
+        status: "Yardımcı",
+        timestamp: new Date().toISOString()
+    };
+
     db.collection('arizalar').doc(faultId).update({
-        helpers: firebase.firestore.FieldValue.arrayRemove(loggedInOperator.name)
+        helpers: firebase.firestore.FieldValue.arrayRemove(loggedInOperator.name),
+        interventions: firebase.firestore.FieldValue.arrayUnion(leaveLog)
     }).then(() => {
         alert("👋 Arızadan başarıyla ayrıldınız. Emeğinize sağlık!");
         closeFaultSelectionModal();

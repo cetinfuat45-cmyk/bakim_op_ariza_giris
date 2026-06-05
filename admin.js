@@ -20,6 +20,7 @@ let localOperators = [];
 let localRootCauses = [];
 let isDirty = false; // Değişiklik yapıldı mı?
 let editingIndex = -1; // -1 = Yeni ekleme, 0+ = Düzenleme
+let autoExportTime = ""; // Otomatik aktarım saati
 
 document.addEventListener("DOMContentLoaded", () => {
     // Admin kontrolü
@@ -51,6 +52,10 @@ async function loadFromFirebase() {
             const data = docSnap.data();
             localOperators = data.operators || [];
             localRootCauses = data.rootCauses || [];
+            autoExportTime = data.autoExportTime || "";
+            if (autoExportTime) {
+                document.getElementById('auto-export-time').value = autoExportTime;
+            }
             renderOperators();
         } else {
             // Boşsa Excel'den çek
@@ -300,6 +305,198 @@ async function fetchFromExcel() {
         console.error("Senkronizasyon Hatası:", error);
         alert("Bağlantı hatası yaşandı!");
         btn.innerText = oldText;
+        btn.disabled = false;
+    }
+}
+
+// ----------------------------------------------------
+// ARŞİVLEME VE TEMİZLİK
+// ----------------------------------------------------
+
+async function saveAutoExportTime() {
+    const timeVal = document.getElementById('auto-export-time').value;
+    if (!timeVal) {
+        alert("Lütfen bir saat seçin!");
+        return;
+    }
+    
+    try {
+        await db.collection('settings').doc('config').set({
+            autoExportTime: timeVal
+        }, { merge: true });
+        
+        autoExportTime = timeVal;
+        alert("✅ Otomatik aktarım saati başarıyla kaydedildi: " + timeVal);
+    } catch(err) {
+        alert("Hata oluştu: " + err.message);
+    }
+}
+
+// Her dakika saati kontrol eden interval
+setInterval(() => {
+    if (!autoExportTime) return;
+    
+    const now = new Date();
+    const currentHourMinute = now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+    
+    // Aynı gün birden fazla kez çalışmasını engellemek için localStorage kontrolü
+    const lastExportDate = localStorage.getItem('lastAutoExportDate');
+    const today = now.toLocaleDateString('tr-TR');
+    
+    if (currentHourMinute === autoExportTime && lastExportDate !== today) {
+        localStorage.setItem('lastAutoExportDate', today);
+        console.log("Otomatik aktarım saati geldi, işlem başlatılıyor...");
+        exportAndCleanClosedFaults();
+    }
+}, 60000); // 60 saniyede bir kontrol et
+
+async function exportAndCleanClosedFaults() {
+    const btn = document.getElementById('btn-manual-export');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = "⏳ İŞLEM YAPILIYOR LÜTFEN BEKLEYİN...";
+    btn.disabled = true;
+
+    try {
+        // Sadece 'Kapalı' olanları çek
+        const snapshot = await db.collection('arizalar').where('status', '==', 'Kapalı').get();
+        if (snapshot.empty) {
+            alert("Şu anda sistemde kapalı (aktarılacak) arıza bulunmuyor.");
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            return;
+        }
+
+        let exportData = [];
+        let docIdsToDelete = [];
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            docIdsToDelete.push(doc.id);
+
+            // Bakım Logu ve Toplam Süre Hesaplama
+            let bakimLogu = "";
+            let totalDuration = 0;
+
+            if (data.interventions && Array.isArray(data.interventions) && data.interventions.length > 0) {
+                // Detaylı Log (Kullanıcının İstediği Format: FUAT ÇETİN ARIZAYI KAPATTI 1 DK)
+                bakimLogu = data.interventions.map(inv => {
+                    let mainOp = (inv.operator || "Bilinmeyen").toUpperCase();
+                    let helperText = "";
+                    
+                    if (inv.helpers && Array.isArray(inv.helpers)) {
+                        let validHelpers = inv.helpers.filter(h => h && h !== inv.operator);
+                        if (validHelpers.length > 0) {
+                            helperText = ` (Yrd: ${validHelpers.join(", ").toUpperCase()})`;
+                        }
+                    }
+                    let opName = mainOp + helperText;
+                    
+                    let d = inv.durationMin || 0;
+                    
+                    let actionStr = "MÜDAHALE ETTİ";
+                    if (inv.status === 'Kapalı') actionStr = "ARIZAYI KAPATTI";
+                    else if (inv.status === 'Beklemede') actionStr = "MALZEME BEKLİYOR";
+                    else if (inv.status === 'Açık') actionStr = "ARIZADAN AYRILDI";
+                    else if (inv.actionTaken) actionStr = inv.actionTaken.toUpperCase();
+
+                    return `${opName} ${actionStr} ${d} DK`;
+                }).join("\n");
+            } else {
+                // Eski sistem geriye dönük uyumluluk (Eğer intervention yoksa)
+                let logArr = [];
+                if (data.completedBy) logArr.push(data.completedBy);
+                if (data.helpers && Array.isArray(data.helpers)) {
+                    data.helpers.forEach(h => {
+                        if (h !== data.completedBy) logArr.push(h);
+                    });
+                }
+                bakimLogu = logArr.join(", ");
+                totalDuration = data.durationMin || 0;
+            }
+
+            // Tarih ve saat parçalama
+            let bitTarih = "";
+            let bitSaat = "";
+            if (data.completedAt) {
+                let d = new Date(data.completedAt);
+                bitTarih = d.toLocaleDateString('tr-TR');
+                bitSaat = d.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+            }
+
+            // A Sütunu Tarihi Düzeltme (Obje veya String olabilir) ve Toplam Duruş Süresi Hesaplama
+            let basTarih = data.createdAt || "";
+            let startObj = null;
+            if (data.createdAt) {
+                if (typeof data.createdAt.toDate === 'function') {
+                    startObj = data.createdAt.toDate();
+                } else if (data.createdAt.seconds) {
+                    startObj = new Date(data.createdAt.seconds * 1000);
+                } else {
+                    startObj = new Date(data.createdAt);
+                }
+                
+                if (startObj && !isNaN(startObj.getTime())) {
+                    basTarih = startObj.toLocaleDateString('tr-TR') + " " + startObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+                }
+            }
+
+            let endObj = data.completedAt ? new Date(data.completedAt) : null;
+            let totalStoppageMin = 0;
+            if (startObj && endObj && !isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
+                totalStoppageMin = Math.max(0, Math.round((endObj - startObj) / 60000));
+            }
+
+            exportData.push([
+                basTarih,                      // A (Düzeltildi)
+                data.userName || "",           // B
+                data.costCenter || "",         // C
+                data.machine || "",            // D
+                data.shift || "",              // E
+                data.jobType || "",            // F
+                data.description || "",        // G
+                data.photoUrl ? "Var" : "Yok", // H
+                bakimLogu,                     // I
+                bitTarih,                      // J
+                bitSaat,                       // K
+                totalStoppageMin + " dk",      // L (Makine Toplam Duruşu)
+                data.stoppageReason || "",     // M
+                data.faultReason || "",        // N (Yer Değiştirdi: Arıza Nedeni -> YAPILAN BAKIM sütunu)
+                data.actionTaken || "",        // O (Yer Değiştirdi: Açıklama -> AÇIKLAMA sütunu)
+                data.partsChanged || ""        // P
+            ]);
+        });
+
+        // Apps Script'e gönder
+        const payload = {
+            action: "exportClosedFaults",
+            data: exportData
+        };
+
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Başarılı olursa Firebase'den sil
+            const batch = db.batch();
+            docIdsToDelete.forEach(id => {
+                batch.delete(db.collection('arizalar').doc(id));
+            });
+            await batch.commit();
+
+            alert(`✅ İşlem Başarılı!\n${docIdsToDelete.length} adet arıza Excel'e aktarıldı ve sistemden silindi.`);
+        } else {
+            alert("Excel'e aktarılırken hata oluştu: " + result.error);
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Bağlantı veya işlem hatası: " + err.message);
+    } finally {
+        btn.innerHTML = oldText;
         btn.disabled = false;
     }
 }
