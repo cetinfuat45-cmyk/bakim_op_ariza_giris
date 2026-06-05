@@ -64,31 +64,95 @@ body {
 
 /* LOGIN SCREEN */
 #login-screen {
+    display: none;
+}
+#login-screen.active {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 70vh;
+}
+
+.login-card {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 3rem 2.5rem;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.login-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.6));
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .pin-input {
     width: 100%;
-    max-width: 250px;
-    padding: 1rem;
-    font-size: 2.5rem;
+    padding: 1.2rem;
+    font-size: 2rem;
     text-align: center;
-    letter-spacing: 0.8rem;
-    background: var(--bg-color);
-    border: 2px solid var(--border-color);
-    color: white;
+    letter-spacing: 15px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 2px solid rgba(255,255,255,0.1);
+    color: var(--primary);
+    font-weight: bold;
     border-radius: 12px;
-    margin-bottom: 1.5rem;
     outline: none;
-    transition: border-color 0.3s;
+    transition: all 0.3s ease;
 }
 
 .pin-input:focus {
     border-color: var(--primary);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+    background: rgba(15, 23, 42, 0.9);
+}
+
+.pin-input::placeholder {
+    font-size: 1rem;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.login-submit-btn {
+    width: 100%;
+    padding: 1.2rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: white;
+    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+    transition: all 0.3s ease;
+    margin-top: 1.5rem;
+    letter-spacing: 1px;
+}
+
+.login-submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
+}
+
+.login-submit-btn:active {
+    transform: translateY(1px);
 }
 
 .btn-primary {
@@ -223,12 +287,22 @@ body {
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(15, 23, 42, 0.95); /* Çok koyu arka plan, dikkat dağınıklığı olmasın */
+    backdrop-filter: blur(5px);
     display: none;
     align-items: center;
     justify-content: center;
     z-index: 50;
     padding: 1rem;
+}
+
+.qr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 500px;
 }
 
 .modal-content {
@@ -238,6 +312,7 @@ body {
     border-radius: 12px;
     padding: 1.5rem;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .modal-title {

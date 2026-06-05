@@ -12,7 +12,8 @@ const firebaseConfig = {
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
-const db = firebase.firestore();
+let db = firebase.firestore();
+let currentOpenFaults = []; // Taranan makineyi bulmak için RAM'de tutulacak
 
 // Sizin Google Apps Script Web App Linkiniz
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0TxZ8yjyP7v3q3tYqMxKs7stPL7g7AvhLRxOfm3Ovci0QGD8vM_IwhkmXBc0wu5BZ/exec";
@@ -164,6 +165,8 @@ function fetchOpenFaults() {
     faultsUnsubscribe = db.collection('arizalar')
         .where('status', '==', 'Açık')
         .onSnapshot((snapshot) => {
+            currentOpenFaults = []; // Listeyi sıfırla
+
             if (snapshot.empty) {
                 todayContainer.innerHTML = `
                     <div style="text-align:center; padding:2rem; background:rgba(16,185,129,0.1); border-radius:8px; border:1px solid var(--primary);">
@@ -184,7 +187,10 @@ function fetchOpenFaults() {
 
             let faultDocs = [];
             snapshot.forEach(doc => {
-                faultDocs.push({ id: doc.id, ...doc.data() });
+                const data = doc.data();
+                data.id = doc.id;
+                faultDocs.push(data);
+                currentOpenFaults.push(data); // Aramak için kaydet
             });
 
             faultDocs.sort((a, b) => {
@@ -273,7 +279,7 @@ function fetchOpenFaults() {
                     card.style.backgroundColor = cardBg;
                     if (!isSolid) card.style.borderLeftColor = borderColor;
                     if (isMyTask) card.style.border = `3px solid var(--text-main)`; 
-                    card.onclick = () => openFaultDetails(fault.id);
+                    card.onclick = () => startQROnlyCamera();
                     card.innerHTML = cardHtml;
                     todayContainer.appendChild(card);
                 }
@@ -288,7 +294,7 @@ function fetchOpenFaults() {
                     tr.style.color = textColor;
                     tr.style.borderLeft = `4px solid ${isSolid ? textColor : borderColor}`;
                     
-                    tr.onclick = () => openFaultDetails(fault.id);
+                    tr.onclick = () => startQROnlyCamera();
                     tr.innerHTML = `
                         <td style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
                         <td class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
@@ -343,7 +349,7 @@ function fetchOpenFaults() {
                         const tr = document.createElement('tr');
                         tr.style.backgroundColor = bg; 
                         tr.style.borderLeft = `4px solid ${txtColor}`;
-                        tr.onclick = () => openFaultDetails(fault.id);
+                        tr.onclick = () => startQROnlyCamera();
                         tr.innerHTML = `
                             <td style="color: var(--danger); font-weight: bold; text-align: center;">${timeStr}</td>
                             <td class="truncate-text" style="color: var(--text-muted);">${fault.shift || "-"}</td>
@@ -386,9 +392,112 @@ function getTimestampMs(createdAt) {
     return d ? d.getTime() : 0;
 }
 
-function openFaultDetails(faultId) {
-    // Sonraki aşamada yapılacak: Formu açıp "Müdahale Et / Kapat" işlemleri
-    alert("Bu arızanın kapatma formu bir sonraki adımda yapılacak!\nArıza ID: " + faultId);
+// --- QR VE MÜDAHALE SİSTEMİ EKLENTİSİ ---
+
+let html5QrCode = null;
+let activeInterventionFaultId = null;
+
+// Tıklanan tüm arızalar bu fonksiyonu tetikler, ID önemsizdir!
+function startQROnlyCamera() {
+    document.getElementById('qr-modal').style.display = 'flex';
+    
+    html5QrCode = new Html5Qrcode("qr-reader");
+    
+    // Tarayıcı Ayarları (Yüksek fps ve geniş kutu)
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    // "environment" = Arka Canlı Kamera Zorunlu (Galeri Yok!)
+    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+    .catch(err => {
+        alert("Kamera başlatılamadı! Tarayıcınızın kameraya erişim izni verdiğinden emin olun.");
+        closeQRModal();
+    });
+}
+
+function closeQRModal() {
+    document.getElementById('qr-modal').style.display = 'none';
+    if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+            html5QrCode.clear();
+        }).catch(err => console.error("Kamera durdurma hatası:", err));
+    }
+}
+
+// Karekod başarılı okunduğunda
+function onScanSuccess(decodedText) {
+    // 1. Hemen kamerayı kapat
+    closeQRModal();
+    
+    // 2. Metni Parçala (Örn: "JETCO FREZE-351321-8" -> "JETCO FREZE")
+    let machineName = decodedText;
+    if (decodedText.includes('-')) {
+        machineName = decodedText.split('-')[0].trim();
+    }
+    
+    // 3. Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
+    const matchedFault = currentOpenFaults.find(f => {
+        if (!f.machine) return false;
+        // İsimleri tamamen büyük harf ve boşluksuz hale getirip daha güvenli arama yapabiliriz
+        return f.machine.trim().toLocaleUpperCase('tr-TR') === machineName.toLocaleUpperCase('tr-TR');
+    });
+    
+    // 4. Sonuç değerlendirmesi
+    if (matchedFault) {
+        openInterventionForm(matchedFault);
+    } else {
+        alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nOkunan: ${machineName}\nLütfen listede kaydı olan arızalı makineyi okuttuğunuzdan emin olun.`);
+    }
+}
+
+function openInterventionForm(fault) {
+    activeInterventionFaultId = fault.id;
+    
+    // Formu temizle ve makine adını yaz
+    document.getElementById('modal-machine-name').innerText = fault.machine || "Bilinmiyor";
+    document.getElementById('modal-action-taken').value = '';
+    document.getElementById('modal-parts-changed').value = '';
+    
+    document.getElementById('fault-modal').style.display = 'flex';
+}
+
+function closeFaultModal() {
+    document.getElementById('fault-modal').style.display = 'none';
+    activeInterventionFaultId = null;
+}
+
+// Firebase Güncellemesi (Arızayı Kapat)
+function saveIntervention() {
+    if (!activeInterventionFaultId) return;
+    
+    const actionTaken = document.getElementById('modal-action-taken').value.trim();
+    const partsChanged = document.getElementById('modal-parts-changed').value.trim();
+    
+    if (!actionTaken) {
+        alert("⚠️ Lütfen 'Yapılan İşlem / Kök Neden' alanını doldurun!");
+        return;
+    }
+    
+    // Butonu pasife alıp çifte tıklamayı önleyelim
+    const saveBtn = document.querySelector('.btn-save');
+    saveBtn.innerText = 'Kapatılıyor...';
+    saveBtn.disabled = true;
+    
+    const faultRef = db.collection('arizalar').doc(activeInterventionFaultId);
+    faultRef.update({
+        status: 'Kapatıldı',
+        completedAt: new Date().toISOString(),
+        completedBy: loggedInOperator.name,
+        actionTaken: actionTaken,
+        partsChanged: partsChanged || "-"
+    }).then(() => {
+        alert("✅ Arıza başarıyla kapatıldı ve arşive eklendi!");
+        closeFaultModal();
+    }).catch(error => {
+        alert("Hata oluştu: " + error.message);
+    }).finally(() => {
+        saveBtn.innerText = 'Arızayı Kapat';
+        saveBtn.disabled = false;
+    });
 }
 
 // Dashboard (Aktif İşler) Ekranına Geçiş
