@@ -158,8 +158,8 @@ function closeSettings() {
 
 async function updateMachineList() {
     // CORS hatasını aşmak için AllOrigins proxy'si kullanıyoruz.
-    // CSV olarak doğrudan indirip kendimiz parçalayacağız.
-    const targetUrl = `https://docs.google.com/spreadsheets/d/13pjcli1vFeM_DuHk7y5HV1DBpqXE_IlaQtdhMsvf_6U/export?format=csv&t=${new Date().getTime()}`;
+    // CSV olarak doğrudan indirip kendimiz parçalayacağız. GID parametresi ile spesifik sayfayı çekiyoruz.
+    const targetUrl = `https://docs.google.com/spreadsheets/d/13pjcli1vFeM_DuHk7y5HV1DBpqXE_IlaQtdhMsvf_6U/export?format=csv&gid=1078561341&t=${new Date().getTime()}`;
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
     
     const btn = document.querySelector('#settings-modal button');
