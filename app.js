@@ -133,6 +133,78 @@ function checkSavedLogin() {
     }
 }
 
+// --- MAKİNE SÖZLÜĞÜ (AppSheet ID -> Makine Adı) ---
+let machineDictionary = {};
+
+function loadMachineDictionary() {
+    try {
+        const storedMap = localStorage.getItem('akg_machine_dictionary');
+        if (storedMap) {
+            machineDictionary = JSON.parse(storedMap);
+            console.log(`Hafızadan makine sözlüğü yüklendi: ${Object.keys(machineDictionary).length} kayıt.`);
+        }
+    } catch(e) {
+        console.error("Sözlük yüklenirken hata:", e);
+    }
+}
+
+function openSettings() {
+    document.getElementById('settings-modal').style.display = 'flex';
+}
+
+function closeSettings() {
+    document.getElementById('settings-modal').style.display = 'none';
+}
+
+async function updateMachineList() {
+    // Kullanıcı sekmeyi 1. sıraya aldıysa varsayılan (ilk) sekme çekilir.
+    const url = `https://docs.google.com/spreadsheets/d/13pjcli1vFeM_DuHk7y5HV1DBpqXE_IlaQtdhMsvf_6U/gviz/tq?tqx=out:json&t=${new Date().getTime()}`;
+    
+    const btn = document.querySelector('#settings-modal button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ Güncelleniyor...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(url);
+        const text = await res.text();
+        
+        // Google gviz yanıtı özel bir formatta gelir: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+        const jsonString = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+        const data = JSON.parse(jsonString);
+        
+        let newDict = {};
+        
+        // Satırları dön (A sütunu: id, B sütunu: MAKİNE ADI olduğunu varsayıyoruz)
+        if (data && data.table && data.table.rows) {
+            data.table.rows.forEach(row => {
+                if (row.c && row.c[0] && row.c[1]) {
+                    const id = row.c[0].v;
+                    const name = row.c[1].v;
+                    // Başlık satırını atla
+                    if (id && name && id.toString().toLowerCase() !== 'id') {
+                        newDict[id.toString().trim()] = name.toString().trim();
+                    }
+                }
+            });
+        }
+        
+        if(Object.keys(newDict).length > 0) {
+            machineDictionary = newDict;
+            localStorage.setItem('akg_machine_dictionary', JSON.stringify(newDict));
+            alert(`✅ Başarılı! ${Object.keys(newDict).length} adet makine sisteme kaydedildi.`);
+            closeSettings();
+        } else {
+            alert("❌ Uyarı: Çekilen listede makine bulunamadı. Lütfen Excel dosyasındaki makine listesi sekmesinin EN SOLDA (1. sırada) olduğundan emin olun.");
+        }
+    } catch(e) {
+        alert("❌ Hata oluştu: İnternet bağlantınızı kontrol edin. Hata Detayı: " + e.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
 // ----------------------------------------------------
 // AÇIK ARIZALARI FİREBASE'DEN ÇEKME (REALTIME)
 // ----------------------------------------------------
@@ -428,23 +500,45 @@ function onScanSuccess(decodedText) {
     // 1. Hemen kamerayı kapat
     closeQRModal();
     
-    // 2. Taranan metni büyük harfe çevir ve boşlukları al
-    const scannedText = decodedText.trim().toLocaleUpperCase('tr-TR');
+    // 2. Taranan metni işle (AppSheet ID veya Direkt İsim)
+    let scannedText = decodedText.trim();
+    let machineNameForSearch = scannedText.toLocaleUpperCase('tr-TR');
+    let isAppSheetLink = false;
+    let extractedId = "";
+
+    // Eğer karekod AppSheet linki ise içindeki "row=" kısmını bul
+    if (scannedText.includes('appsheet.com') && scannedText.includes('row=')) {
+        isAppSheetLink = true;
+        const urlParams = new URLSearchParams(scannedText.split('#')[1] || scannedText.split('?')[1]);
+        extractedId = urlParams.get('row');
+        
+        if (extractedId && machineDictionary[extractedId]) {
+            // Sözlükten makine adını bulduk!
+            machineNameForSearch = machineDictionary[extractedId].toLocaleUpperCase('tr-TR');
+            console.log(`Eşleşme Bulundu: ${extractedId} -> ${machineNameForSearch}`);
+        } else {
+            // Sözlükte bu ID yok
+            alert(`❌ Hata: Bu makinenin ID'si (${extractedId}) sistemin sözlüğünde bulunamadı!\n\nLütfen sağ üstteki 'Ayarlar ⚙️' menüsünden makine listesini güncelleyin.`);
+            return;
+        }
+    }
     
     // 3. Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
-    // Makine adı QR kodun içinde GEÇİYORSA (includes) veya birebir EŞİTSE eşleşmiş say.
-    // Bu sayede "CNC-TORNA-1234" okunduğunda "CNC-TORNA" makinesi başarıyla bulunur.
     const matchedFault = currentOpenFaults.find(f => {
         if (!f.machine) return false;
         const dbMachine = f.machine.trim().toLocaleUpperCase('tr-TR');
-        return scannedText.includes(dbMachine) || scannedText === dbMachine;
+        return machineNameForSearch.includes(dbMachine) || machineNameForSearch === dbMachine;
     });
     
     // 4. Sonuç değerlendirmesi
     if (matchedFault) {
         openInterventionForm(matchedFault);
     } else {
-        alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nKameranın Okuduğu QR Metni: "${decodedText}"\n\nSistem okunan bu kodun içinde açık arızası olan bir makine adı bulamadı. Lütfen listedeki makine adlarıyla etiketteki adın aynı olup olmadığını kontrol edin.`);
+        if (isAppSheetLink) {
+            alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nBulunan Makine: "${machineNameForSearch}"\n\nSistem bu makineye ait açık bir arıza bulamadı. Lütfen listedeki makine adıyla eşleştiğinden emin olun.`);
+        } else {
+            alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nKameranın Okuduğu QR Metni: "${scannedText}"\n\nSistem okunan bu kodun içinde açık arızası olan bir makine adı bulamadı.`);
+        }
     }
 }
 
