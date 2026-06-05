@@ -229,7 +229,48 @@ function updateMachineList() {
 }
 
 // ----------------------------------------------------
-// AÇIK ARIZALARI FİREBASE'DEN ÇEKME (REALTIME)
+// ARIZAYA TIKLAMA VE ADMIN KONTROLÜ
+// ----------------------------------------------------
+function handleFaultClick(fault) {
+    let isAdmin = false;
+    
+    // Admin kontrolü: İsmin içinde admin, akif, şef geçiyorsa veya şifre 9999 ise Admin say.
+    if (loggedInOperator) {
+        const opName = (loggedInOperator.name || loggedInOperator.isim || loggedInOperator.ad || "").toString().toLocaleLowerCase('tr-TR');
+        const opPin = (loggedInOperator.pin || "").toString().trim();
+        
+        if (opName.includes('admin') || opName.includes('akif') || opName.includes('şef') || opName.includes('sef') || opName.includes('fuat') || opPin === '9999' || opPin === '0000') {
+            isAdmin = true;
+        }
+    }
+
+    if (isAdmin) {
+        // Admin ise, tıkladığı arızanın ait olduğu makinedeki TÜM AÇIK arızaları bulalım
+        if (fault && fault.machine) {
+            const dbMachine = fault.machine.trim().toLocaleUpperCase('tr-TR');
+            const matchedFaults = currentOpenFaults.filter(f => {
+                if (!f.machine) return false;
+                return f.machine.trim().toLocaleUpperCase('tr-TR') === dbMachine;
+            });
+
+            // Arıza varsa daima seçim ekranını aç (tek arıza olsa bile 'Yardımcı Ol' butonunu göstermek için)
+            if (matchedFaults.length >= 1) {
+                openFaultSelectionModal(matchedFaults);
+            } else {
+                openInterventionForm(fault);
+            }
+        } else {
+            // Makine adı yoksa mecburen tekli arıza olarak listele
+            openFaultSelectionModal([fault]);
+        }
+    } else {
+        // Normal teknisyense QR okutmaya zorla
+        startQROnlyCamera();
+    }
+}
+
+// ----------------------------------------------------
+// QR KOD İŞLEMLERİ (SADECE OKUYUCU)
 // ----------------------------------------------------
 
 let faultsUnsubscribe = null;
@@ -258,7 +299,7 @@ function fetchOpenFaults() {
     }
 
     faultsUnsubscribe = db.collection('arizalar')
-        .where('status', '==', 'Açık')
+        .where('status', 'in', ['Açık', 'Müdahale Ediliyor', 'Parça Bekliyor', 'Geçici Çözüm', 'Dış Servis Bekliyor', 'Devredildi'])
         .onSnapshot((snapshot) => {
             currentOpenFaults = []; // Listeyi sıfırla
 
@@ -354,17 +395,25 @@ function fetchOpenFaults() {
                     }
                 }
 
+                // Durum Etiketini Dinamik Yap
+                let statusLabelHtml = `<div class="fault-status" style="color:${textColor}; font-weight:bold;">🔥 MÜDAHALE BEKLİYOR</div>`;
+                const cStatus = fault.status || "Açık";
+                if (cStatus === "Müdahale Ediliyor") {
+                    statusLabelHtml = `<div class="fault-status" style="color:#000; background: ${cardBg !== 'var(--surface-color)' ? cardBg : '#3b82f6'}; padding:4px 8px; border-radius:4px; display:inline-block; font-weight:bold;">👨‍🔧 MÜDAHALE EDİLİYOR (${assignedPerson})</div>`;
+                } else if (cStatus !== "Açık") {
+                    statusLabelHtml = `<div class="fault-status" style="color:#000; background: ${cardBg !== 'var(--surface-color)' ? cardBg : '#f59e0b'}; padding:4px 8px; border-radius:4px; display:inline-block; font-weight:bold;">⏳ ${cStatus.toLocaleUpperCase('tr-TR')}</div>`;
+                }
+
                 // Ortak Kart HTML'si
                 const cardHtml = `
                     <div class="fault-header">
                         <h3 class="machine-name" style="color:${textColor};">⚙️ ${fault.machine || "Bilinmeyen Makine"}</h3>
                         <span class="fault-date" style="color:${mutedColor};">${dateStr}</span>
                     </div>
-                    <p class="fault-details" style="color:${textColor};"><strong>Görevli:</strong> <span style="font-weight:bold;">${assignedPerson}</span></p>
                     <p class="fault-details" style="color:${textColor};"><strong>Vardiya:</strong> ${fault.shift || "-"}</p>
                     <p class="fault-details" style="color:${textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${fault.jobType || "-"}</span></p>
                     <p class="fault-details" style="color:${textColor};"><strong>Açıklama:</strong> ${fault.description || "Açıklama yok"}</p>
-                    <div class="fault-status" style="color:${textColor}; font-weight:bold;">🔥 MÜDAHALE BEKLİYOR</div>
+                    ${statusLabelHtml}
                 `;
 
                 if (isToday) {
@@ -374,7 +423,7 @@ function fetchOpenFaults() {
                     card.style.backgroundColor = cardBg;
                     if (!isSolid) card.style.borderLeftColor = borderColor;
                     if (isMyTask) card.style.border = `3px solid var(--text-main)`; 
-                    card.onclick = () => startQROnlyCamera();
+                    card.onclick = () => handleFaultClick(fault);
                     card.innerHTML = cardHtml;
                     todayContainer.appendChild(card);
                 }
@@ -389,7 +438,7 @@ function fetchOpenFaults() {
                     tr.style.color = textColor;
                     tr.style.borderLeft = `4px solid ${isSolid ? textColor : borderColor}`;
                     
-                    tr.onclick = () => startQROnlyCamera();
+                    tr.onclick = () => handleFaultClick(fault);
                     tr.innerHTML = `
                         <td style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
                         <td class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
@@ -444,7 +493,7 @@ function fetchOpenFaults() {
                         const tr = document.createElement('tr');
                         tr.style.backgroundColor = bg; 
                         tr.style.borderLeft = `4px solid ${txtColor}`;
-                        tr.onclick = () => startQROnlyCamera();
+                        tr.onclick = () => handleFaultClick(fault);
                         tr.innerHTML = `
                             <td style="color: var(--danger); font-weight: bold; text-align: center;">${timeStr}</td>
                             <td class="truncate-text" style="color: var(--text-muted);">${fault.shift || "-"}</td>
@@ -547,7 +596,6 @@ function onScanSuccess(decodedText) {
     }
     
     // 3. Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
-    // find() yerine filter() kullanıyoruz ki aynı makinede birden fazla arıza varsa hepsini bulalım
     const matchedFaults = currentOpenFaults.filter(f => {
         if (!f.machine) return false;
         const dbMachine = f.machine.trim().toLocaleUpperCase('tr-TR');
@@ -555,11 +603,8 @@ function onScanSuccess(decodedText) {
     });
     
     // 4. Sonuç değerlendirmesi
-    if (matchedFaults.length === 1) {
-        // Sadece 1 arıza varsa direkt formu aç
-        openInterventionForm(matchedFaults[0]);
-    } else if (matchedFaults.length > 1) {
-        // Birden fazla arıza varsa seçim ekranını aç
+    if (matchedFaults.length >= 1) {
+        // Yardımcı ol butonlarını da gösterebilmek için tek arıza da olsa bu ekranı açıyoruz
         openFaultSelectionModal(matchedFaults);
     } else {
         // Hiç arıza yoksa hata ver
@@ -575,47 +620,88 @@ function onScanSuccess(decodedText) {
 function openFaultSelectionModal(faults) {
     const modal = document.getElementById('fault-selection-modal');
     const container = document.getElementById('multiple-faults-container');
+    const machineNameEl = document.getElementById('fault-selection-machine-name');
     
     // Konteyneri temizle
     container.innerHTML = '';
     
+    // Makine ismini SADECE en üste 1 kere yazdır
+    if (faults.length > 0) {
+        machineNameEl.innerHTML = `🏭 ${faults[0].machine || 'Bilinmeyen Makine'}`;
+    }
+    
     // Her bir arıza için bir seçim butonu/kartı oluştur
     faults.forEach(fault => {
+        // Arıza Türüne Göre Renk Belirleme (Ana paneldekiyle aynı renkler)
+        let bg = "rgba(255,255,255,0.05)";
+        let txtColor = "var(--primary)";
+        let badgeColor = "var(--primary)";
+        
+        if (fault.jobType) {
+            const t = fault.jobType.toLocaleLowerCase('tr-TR');
+            if (t.includes('mekanik')) { bg = "rgba(0, 255, 255, 0.1)"; txtColor = "#00FFFF"; badgeColor = "#00FFFF"; }
+            else if (t.includes('elektrik')) { bg = "rgba(255, 255, 0, 0.1)"; txtColor = "#FFFF00"; badgeColor = "#FFFF00"; }
+            else if (t.includes('iş güvenliği') || t.includes('is guvenligi')) { bg = "rgba(255, 0, 0, 0.1)"; txtColor = "#FF0000"; badgeColor = "#FF0000"; }
+            else if (t.includes('planlı bakım') || t.includes('planli bakim')) { bg = "rgba(255, 165, 0, 0.1)"; txtColor = "#FFA500"; badgeColor = "#FFA500"; }
+            else if (t.includes('tekrar eden')) { bg = "rgba(255, 0, 255, 0.1)"; txtColor = "#FF00FF"; badgeColor = "#FF00FF"; }
+        }
+        
         const div = document.createElement('div');
-        div.style.background = 'rgba(255,255,255,0.05)';
-        div.style.border = '1px solid rgba(255,255,255,0.1)';
+        div.style.background = bg;
+        div.style.border = `1px solid ${txtColor}`;
+        div.style.borderLeft = `4px solid ${txtColor}`;
         div.style.borderRadius = '8px';
         div.style.padding = '12px';
-        div.style.cursor = 'pointer';
-        div.style.transition = 'background 0.2s';
         
-        // Hover efekti
-        div.onmouseover = () => div.style.background = 'rgba(255,255,255,0.1)';
-        div.onmouseout = () => div.style.background = 'rgba(255,255,255,0.05)';
+        // İçerik: Arıza Türü (jobType), Açıklama, Açan Kişi, Tarih
+        const jobTypeDisplay = fault.jobType || fault.faultType || "Belirtilmemiş";
+        const typeHtml = `<div style="color: ${txtColor}; font-size: 1rem; margin-bottom: 6px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">🛠️ Tür: ${jobTypeDisplay}</div>`;
+        const descHtml = fault.description ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>📝 Açıklama:</strong> ${fault.description}</div>` : (fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>📝 Açıklama:</strong> ${fault.faultDescription}</div>` : '');
+        const reporterHtml = fault.assignedTo ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;">👤 <strong>Görevli / Açan:</strong> ${fault.assignedTo}</div>` : '';
         
-        // Tıklanınca o arızayı seç ve formu aç
-        div.onclick = () => {
-            closeFaultSelectionModal();
-            openInterventionForm(fault);
-        };
+        // Tarihi güvenli bir şekilde dönüştür (Invalid Date hatasını önlemek için)
+        const dateObj = parseFaultDate(fault.createdAt || fault.faultDate);
+        const dateStr = dateObj ? dateObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : (fault.createdAt || fault.faultDate || "Bilinmeyen Tarih");
+        const dateHtml = `<div style="color: #64748b; font-size: 0.8rem; margin-top: 2px;">🗓️ <strong>Tarih:</strong> ${dateStr}</div>`;
         
-        // İçerik: Makine, Arıza Türü, Açıklama ve Açan Kişi
-        const machineHtml = `<div style="color: #f8fafc; font-weight: bold; font-size: 1.1rem; margin-bottom: 8px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;">
-            <span>🏭 ${fault.machine || 'Bilinmeyen Makine'}</span>
-            <span style="font-size: 0.8rem; color: #94a3b8; font-weight: normal; align-self: center;">Müdahale Et 👉</span>
-        </div>`;
+        // --- DINAMIK BUTON MANTIĞI ---
+        let actionButtonsHtml = '';
+        const currentStatus = fault.status || "Açık";
         
-        const typeHtml = fault.faultType ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 4px;"><strong>🛠️ Tür:</strong> <span style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${fault.faultType}</span></div>` : '';
-        const descHtml = fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 4px;"><strong>📝 Açıklama:</strong> ${fault.faultDescription}</div>` : '';
-        const reporterHtml = fault.reportedBy ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">👤 <strong>Açan:</strong> ${fault.reportedBy}</div>` : '';
-        const dateHtml = fault.faultDate ? `<div style="color: #64748b; font-size: 0.8rem; margin-top: 2px;">🗓️ <strong>Tarih:</strong> ${new Date(fault.faultDate).toLocaleString('tr-TR')}</div>` : '';
+        if (!fault.assignedTo) {
+            // Hiç kimse işe başlamamış veya arıza parça beklemeye düşmüş
+            let startBtnText = "🚀 Çalışmaya Başla";
+            if (currentStatus === "Parça Bekliyor") startBtnText = "📦 Parça Geldi / İşi Devral";
+            else if (currentStatus !== "Açık") startBtnText = "🚀 İşi Devral (" + currentStatus + ")";
+
+            actionButtonsHtml = `<button onclick='startWork("${fault.id}")' style="background: var(--primary); color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">${startBtnText}</button>`;
+        } else {
+            // Arıza aktif durumda (Müdahale Ediliyor)
+            if (fault.assignedTo === loggedInOperator.name) {
+                // Ana görevli kendisi
+                actionButtonsHtml = `<button onclick='startMainIntervention("${fault.id}")' style="background: ${badgeColor}; color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">📝 Müdahaleyi Bitir / Güncelle</button>`;
+            } else {
+                // Ana görevli başkası
+                const isHelper = fault.helpers && fault.helpers.includes(loggedInOperator.name);
+                
+                if (isHelper) {
+                    // Zaten yardımcı
+                    actionButtonsHtml = `<button onclick='leaveHelper("${fault.id}")' style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 6px 12px; border: 1px solid #ef4444; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">👋 Bakımdan Ayrıl</button>`;
+                } else {
+                    // Henüz katılmamış
+                    actionButtonsHtml = `<button onclick='joinAsHelper("${fault.id}")' style="background: rgba(255,255,255,0.1); color: white; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">🤝 Yardımcı Olarak Katıl</button>`;
+                }
+            }
+        }
         
         div.innerHTML = `
-            ${machineHtml}
             ${typeHtml}
             ${descHtml}
             ${reporterHtml}
             ${dateHtml}
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
+                ${actionButtonsHtml}
+            </div>
         `;
         
         container.appendChild(div);
@@ -628,13 +714,120 @@ function closeFaultSelectionModal() {
     document.getElementById('fault-selection-modal').style.display = 'none';
 }
 
+// Yeni: İşi üzerine alıp çalışmaya başlar
+function startWork(faultId) {
+    if (!loggedInOperator) return;
+    
+    const confirmStart = confirm(`Bu arızaya ana görevli olarak müdahale etmeye başlamak istiyor musunuz?`);
+    if (!confirmStart) return;
+    
+    const btn = event.currentTarget;
+    const oldText = btn.innerText;
+    btn.innerText = "⏳ Başlatılıyor...";
+    btn.disabled = true;
+
+    db.collection('arizalar').doc(faultId).update({
+        status: "Müdahale Ediliyor",
+        assignedTo: loggedInOperator.name,
+        startedAt: new Date().toISOString()
+    }).then(() => {
+        alert("🚀 Çalışma başarıyla başlatıldı! Kolay gelsin.");
+        closeFaultSelectionModal();
+    }).catch(err => {
+        alert("Hata oluştu: " + err.message);
+        btn.innerText = oldText;
+        btn.disabled = false;
+    });
+}
+
+// Seçim ekranından ana müdahale formunu başlatır
+function startMainIntervention(faultId) {
+    const fault = currentOpenFaults.find(f => f.id === faultId);
+    if (fault) {
+        closeFaultSelectionModal();
+        openInterventionForm(fault);
+    }
+}
+
+// Yardımcı bakımcı olarak veritabanına kendini ekler
+function joinAsHelper(faultId) {
+    if (!loggedInOperator) return;
+    
+    const fault = currentOpenFaults.find(f => f.id === faultId);
+    if (!fault) return;
+    
+    // Eğer kişi zaten kendi başlattığı bir arızaysa
+    if (fault.assignedTo === loggedInOperator.name || fault.completedBy === loggedInOperator.name) {
+        alert("⚠️ Siz zaten bu arızanın ana sorumlususunuz. Formu açmak için 'Müdahale Et' butonunu kullanın.");
+        return;
+    }
+    
+    // Eğer kişi zaten yardımcılarda ekliyse
+    if (fault.helpers && fault.helpers.includes(loggedInOperator.name)) {
+        alert("✅ Siz zaten bu arızanın kayıtlarında yardımcı olarak bulunuyorsunuz.");
+        return;
+    }
+
+    const confirmJoin = confirm(`Bu arızaya yardımcı bakımcı olarak katılmak istiyor musunuz?\n\n(Kayıtlarınıza eklenecektir.)`);
+    if (!confirmJoin) return;
+    
+    const btn = event.currentTarget;
+    const oldText = btn.innerText;
+    btn.innerText = "⏳ Katılınıyor...";
+    btn.disabled = true;
+
+    db.collection('arizalar').doc(faultId).update({
+        helpers: firebase.firestore.FieldValue.arrayUnion(loggedInOperator.name)
+    }).then(() => {
+        alert("✅ Başarıyla arızaya yardımcı olarak katıldınız!");
+        closeFaultSelectionModal();
+    }).catch(err => {
+        alert("Hata oluştu: " + err.message);
+        btn.innerText = oldText;
+        btn.disabled = false;
+    });
+}
+
+// Yeni: Yardımcı bakımcının işten ayrılması
+function leaveHelper(faultId) {
+    if (!loggedInOperator) return;
+    
+    const confirmLeave = confirm(`Bu arızadaki görevinizi (yardımcı bakımcı) sonlandırıp ayrılmak istiyor musunuz?`);
+    if (!confirmLeave) return;
+    
+    const btn = event.currentTarget;
+    const oldText = btn.innerText;
+    btn.innerText = "⏳ Ayrılıyorsunuz...";
+    btn.disabled = true;
+
+    db.collection('arizalar').doc(faultId).update({
+        helpers: firebase.firestore.FieldValue.arrayRemove(loggedInOperator.name)
+    }).then(() => {
+        alert("👋 Arızadan başarıyla ayrıldınız. Emeğinize sağlık!");
+        closeFaultSelectionModal();
+    }).catch(err => {
+        alert("Hata oluştu: " + err.message);
+        btn.innerText = oldText;
+        btn.disabled = false;
+    });
+}
+
 function openInterventionForm(fault) {
     activeInterventionFaultId = fault.id;
     
     // Formu temizle ve makine adını yaz
     document.getElementById('modal-machine-name').innerText = fault.machine || "Bilinmiyor";
-    document.getElementById('modal-action-taken').value = '';
-    document.getElementById('modal-parts-changed').value = '';
+    document.getElementById('modal-action-taken').value = fault.actionTaken || '';
+    document.getElementById('modal-parts-changed').value = fault.partsChanged !== '-' ? (fault.partsChanged || '') : '';
+    
+    // Radyo butonunu mevcut duruma getir (Yoksa Kapalı)
+    const statusRadios = document.getElementsByName('faultStatus');
+    const currentStatus = fault.status === "Açık" || fault.status === "Müdahale Ediliyor" ? "Kapalı" : fault.status;
+    for (let r of statusRadios) {
+        if (r.value === currentStatus) r.checked = true;
+    }
+    
+    // (Elle yardımcı seçme listesi, sadece QR ile katılım sağlandığı için kaldırıldı)
     
     document.getElementById('fault-modal').style.display = 'flex';
 }
@@ -644,37 +837,85 @@ function closeFaultModal() {
     activeInterventionFaultId = null;
 }
 
-// Firebase Güncellemesi (Arızayı Kapat)
+// Firebase Güncellemesi (Müdahaleyi Kaydet)
 function saveIntervention() {
     if (!activeInterventionFaultId) return;
     
     const actionTaken = document.getElementById('modal-action-taken').value.trim();
     const partsChanged = document.getElementById('modal-parts-changed').value.trim();
     
-    if (!actionTaken) {
-        alert("⚠️ Lütfen 'Yapılan İşlem / Kök Neden' alanını doldurun!");
+    // Seçilen Durumu (Status) Al
+    let selectedStatus = 'Kapalı';
+    const statusRadios = document.getElementsByName('faultStatus');
+    for (let r of statusRadios) {
+        if (r.checked) {
+            selectedStatus = r.value;
+            break;
+        }
+    }
+    
+    // Açıklama alanı sadece "Kapalı" durumu için zorunlu olsun
+    if (selectedStatus === 'Kapalı' && !actionTaken) {
+        alert("⚠️ Lütfen 'Yapılan İşlem / Kök Neden' alanını doldurun! Arızayı kapatmak için bu alan zorunludur.");
         return;
     }
     
+    // İlgili arızayı hafızadan bul (Log ve süre hesabı için)
+    const fault = currentOpenFaults.find(f => f.id === activeInterventionFaultId);
+    
     // Butonu pasife alıp çifte tıklamayı önleyelim
-    const saveBtn = document.querySelector('.btn-save');
-    saveBtn.innerText = 'Kapatılıyor...';
+    const saveBtn = document.getElementById('btn-save-intervention');
+    const originalBtnText = saveBtn.innerText;
+    saveBtn.innerText = 'Kaydediliyor...';
     saveBtn.disabled = true;
     
-    const faultRef = db.collection('arizalar').doc(activeInterventionFaultId);
-    faultRef.update({
-        status: 'Kapatıldı',
-        completedAt: new Date().toISOString(),
-        completedBy: loggedInOperator.name,
+    // Çalışma Süresini Hesapla (Dakika)
+    let durationMin = 0;
+    if (fault && fault.startedAt) {
+        const startTime = new Date(fault.startedAt).getTime();
+        const endTime = new Date().getTime();
+        durationMin = Math.max(1, Math.round((endTime - startTime) / 60000));
+    }
+    
+    // Log Kaydını Oluştur
+    const logEntry = {
+        operator: loggedInOperator.name,
+        helpers: (fault && fault.helpers) ? fault.helpers : [],
+        durationMin: durationMin,
         actionTaken: actionTaken,
-        partsChanged: partsChanged || "-"
-    }).then(() => {
-        alert("✅ Arıza başarıyla kapatıldı ve arşive eklendi!");
+        status: selectedStatus,
+        timestamp: new Date().toISOString()
+    };
+    
+    const faultRef = db.collection('arizalar').doc(activeInterventionFaultId);
+    
+    // Duruma göre güncellenecek alanları belirle
+    let updateData = {
+        status: selectedStatus,
+        actionTaken: actionTaken,
+        partsChanged: partsChanged || "-",
+        interventions: firebase.firestore.FieldValue.arrayUnion(logEntry)
+    };
+    
+    if (selectedStatus === 'Kapalı') {
+        updateData.completedAt = new Date().toISOString();
+        updateData.completedBy = loggedInOperator.name;
+    } else {
+        // Parça Bekliyor, Devredildi veya Geçici Çözüm ise Görevlileri Temizle (Havuz Düşsün)
+        updateData.assignedTo = firebase.firestore.FieldValue.delete();
+        updateData.startedAt = firebase.firestore.FieldValue.delete();
+        updateData.helpers = [];
+        updateData.lastInterventionAt = new Date().toISOString();
+        updateData.lastInterventionBy = loggedInOperator.name;
+    }
+    
+    faultRef.update(updateData).then(() => {
+        alert(`✅ Arıza müdahalesi başarıyla sisteme kaydedildi! \n\nYeni Durum: ${selectedStatus}`);
         closeFaultModal();
     }).catch(error => {
         alert("Hata oluştu: " + error.message);
     }).finally(() => {
-        saveBtn.innerText = 'Arızayı Kapat';
+        saveBtn.innerText = originalBtnText;
         saveBtn.disabled = false;
     });
 }
