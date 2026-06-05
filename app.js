@@ -156,57 +156,76 @@ function closeSettings() {
     document.getElementById('settings-modal').style.display = 'none';
 }
 
-async function updateMachineList() {
-    // CORS hatasını aşmak için AllOrigins proxy'si kullanıyoruz.
-    // CSV olarak doğrudan indirip kendimiz parçalayacağız. GID parametresi ile spesifik sayfayı çekiyoruz.
-    const targetUrl = `https://docs.google.com/spreadsheets/d/13pjcli1vFeM_DuHk7y5HV1DBpqXE_IlaQtdhMsvf_6U/export?format=csv&gid=1078561341&t=${new Date().getTime()}`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    
-    const btn = document.querySelector('#settings-modal button');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ Güncelleniyor...";
-    btn.disabled = true;
-
-    try {
-        const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error("Ağ yanıtı başarılı değil: " + res.status);
-        const text = await res.text();
-        
-        let newDict = {};
-        const lines = text.split('\\n');
-        
-        // Satırları dön (A sütunu: id, B sütunu: MAKİNE ADI)
-        for(let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if(!line) continue;
-            
-            // Satırı virgüle göre böl (Basit CSV ayrıştırma)
-            const parts = line.split(',');
-            if (parts.length >= 2) {
-                const id = parts[0].trim();
-                const name = parts[1].trim();
-                
-                // Eğer ID sütunu 'id' başlığı değilse ve boş değilse sözlüğe ekle
-                if (id && name && id.toLowerCase() !== 'id') {
-                    newDict[id] = name;
+// JSONP Callback Fonksiyonunu Ayarlıyoruz
+window.google = {
+    visualization: {
+        Query: {
+            setResponse: function(data) {
+                const btn = document.querySelector('#settings-modal button');
+                try {
+                    let newDict = {};
+                    if (data && data.table && data.table.rows) {
+                        data.table.rows.forEach(row => {
+                            if (row.c && row.c[0] && row.c[1]) {
+                                const id = row.c[0].v;
+                                const name = row.c[1].v;
+                                if (id && name && id.toString().toLowerCase() !== 'id') {
+                                    newDict[id.toString().trim()] = name.toString().trim();
+                                }
+                            }
+                        });
+                    }
+                    
+                    if(Object.keys(newDict).length > 0) {
+                        machineDictionary = newDict;
+                        localStorage.setItem('akg_machine_dictionary', JSON.stringify(newDict));
+                        alert(`✅ Başarılı! ${Object.keys(newDict).length} adet makine sisteme kaydedildi.`);
+                        closeSettings();
+                    } else {
+                        alert("❌ Uyarı: Çekilen listede makine bulunamadı.");
+                    }
+                } catch(e) {
+                    alert("❌ Veri işlenirken hata oluştu: " + e.message);
+                } finally {
+                    if(btn) {
+                        btn.innerHTML = "🔄 Makine Listesini Güncelle";
+                        btn.disabled = false;
+                    }
+                    // Eklenen script etiketini temizle
+                    const script = document.getElementById('gviz-script');
+                    if(script) script.remove();
                 }
             }
         }
-        
-        if(Object.keys(newDict).length > 0) {
-            machineDictionary = newDict;
-            localStorage.setItem('akg_machine_dictionary', JSON.stringify(newDict));
-            alert(`✅ Başarılı! ${Object.keys(newDict).length} adet makine sisteme kaydedildi.`);
-            closeSettings();
-        } else {
-            alert("❌ Uyarı: Çekilen listede makine bulunamadı. Lütfen Excel dosyasındaki makine listesi sekmesinin EN SOLDA (1. sırada) olduğundan emin olun.");
-        }
-    } catch(e) {
-        alert("❌ Hata oluştu: İnternet bağlantınızı kontrol edin. Hata Detayı: " + e.message);
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
     }
+};
+
+function updateMachineList() {
+    const btn = document.querySelector('#settings-modal button');
+    if(btn) {
+        btn.innerHTML = "⏳ Güncelleniyor...";
+        btn.disabled = true;
+    }
+
+    // CORS ve Proxy hatalarını %100 aşmak için fetch yerine JSONP (script tag) yöntemi kullanıyoruz.
+    const url = `https://docs.google.com/spreadsheets/d/13pjcli1vFeM_DuHk7y5HV1DBpqXE_IlaQtdhMsvf_6U/gviz/tq?tqx=out:json&gid=1078561341&t=${new Date().getTime()}`;
+    
+    // Eski script varsa temizle
+    const oldScript = document.getElementById('gviz-script');
+    if(oldScript) oldScript.remove();
+
+    // Yeni script etiketi oluştur ve sayfaya ekle. Bu, veriyi doğrudan çeker ve üstte tanımladığımız setResponse fonksiyonunu tetikler.
+    const script = document.createElement('script');
+    script.id = 'gviz-script';
+    script.src = url;
+    script.onerror = function() {
+        alert("❌ Ağ Hatası: Liste indirilemedi. İnternet bağlantınızı veya güvenlik duvarınızı kontrol edin.");
+        if(btn) {
+            btn.innerHTML = "🔄 Makine Listesini Güncelle";
+            btn.disabled = false;
+        }
+    };
+    document.body.appendChild(script);
 }
 
 // ----------------------------------------------------
