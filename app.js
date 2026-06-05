@@ -599,17 +599,22 @@ function openFaultSelectionModal(faults) {
             openInterventionForm(fault);
         };
         
-        // İçerik: Arıza Türü ve Açıklaması
-        const typeHtml = fault.faultType ? `<span style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">${fault.faultType}</span>` : '';
-        const descHtml = fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-top: 5px;">${fault.faultDescription}</div>` : '';
-        const dateHtml = fault.faultDate ? `<div style="color: #64748b; font-size: 0.8rem; margin-top: 5px;">🗓️ ${new Date(fault.faultDate).toLocaleString('tr-TR')}</div>` : '';
+        // İçerik: Makine, Arıza Türü, Açıklama ve Açan Kişi
+        const machineHtml = `<div style="color: #f8fafc; font-weight: bold; font-size: 1.1rem; margin-bottom: 8px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;">
+            <span>🏭 ${fault.machine || 'Bilinmeyen Makine'}</span>
+            <span style="font-size: 0.8rem; color: #94a3b8; font-weight: normal; align-self: center;">Müdahale Et 👉</span>
+        </div>`;
+        
+        const typeHtml = fault.faultType ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 4px;"><strong>🛠️ Tür:</strong> <span style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${fault.faultType}</span></div>` : '';
+        const descHtml = fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 4px;"><strong>📝 Açıklama:</strong> ${fault.faultDescription}</div>` : '';
+        const reporterHtml = fault.reportedBy ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">👤 <strong>Açan:</strong> ${fault.reportedBy}</div>` : '';
+        const dateHtml = fault.faultDate ? `<div style="color: #64748b; font-size: 0.8rem; margin-top: 2px;">🗓️ <strong>Tarih:</strong> ${new Date(fault.faultDate).toLocaleString('tr-TR')}</div>` : '';
         
         div.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-                <strong style="color: white; font-size: 1.05rem;">Müdahale Et 👉</strong>
-                ${typeHtml}
-            </div>
+            ${machineHtml}
+            ${typeHtml}
             ${descHtml}
+            ${reporterHtml}
             ${dateHtml}
         `;
         
