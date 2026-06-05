@@ -208,6 +208,20 @@
         </div>
     </div>
 
+    <!-- BİRDEN FAZLA ARIZA SEÇİM MODALI -->
+    <div id="fault-selection-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center;">
+        <div class="modal-content" style="max-width: 500px;">
+            <h3 class="modal-title" style="color: #f59e0b;">⚠️ Birden Fazla Arıza Bulundu</h3>
+            <p style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 1rem;">Bu makinede açık olan birden fazla arıza var. Lütfen müdahale edeceğiniz arızayı seçin:</p>
+            
+            <div id="multiple-faults-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; margin-bottom: 1.5rem;">
+                <!-- Dinamik liste buraya gelecek -->
+            </div>
+
+            <button onclick="closeFaultSelectionModal()" class="btn-cancel" style="width: 100%;">İptal / Geri Dön</button>
+        </div>
+    </div>
+
     <!-- MÜDAHALE / KAPATMA MODALI -->
     <div id="fault-modal" class="modal-overlay">
         <div class="modal-content">

@@ -547,22 +547,80 @@ function onScanSuccess(decodedText) {
     }
     
     // 3. Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
-    const matchedFault = currentOpenFaults.find(f => {
+    // find() yerine filter() kullanıyoruz ki aynı makinede birden fazla arıza varsa hepsini bulalım
+    const matchedFaults = currentOpenFaults.filter(f => {
         if (!f.machine) return false;
         const dbMachine = f.machine.trim().toLocaleUpperCase('tr-TR');
         return machineNameForSearch.includes(dbMachine) || machineNameForSearch === dbMachine;
     });
     
     // 4. Sonuç değerlendirmesi
-    if (matchedFault) {
-        openInterventionForm(matchedFault);
+    if (matchedFaults.length === 1) {
+        // Sadece 1 arıza varsa direkt formu aç
+        openInterventionForm(matchedFaults[0]);
+    } else if (matchedFaults.length > 1) {
+        // Birden fazla arıza varsa seçim ekranını aç
+        openFaultSelectionModal(matchedFaults);
     } else {
+        // Hiç arıza yoksa hata ver
         if (isAppSheetLink) {
             alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nBulunan Makine: "${machineNameForSearch}"\n\nSistem bu makineye ait açık bir arıza bulamadı. Lütfen listedeki makine adıyla eşleştiğinden emin olun.`);
         } else {
             alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nKameranın Okuduğu QR Metni: "${scannedText}"\n\nSistem okunan bu kodun içinde açık arızası olan bir makine adı bulamadı.`);
         }
     }
+}
+
+// --- BİRDEN FAZLA ARIZA SEÇİM MODALI ---
+function openFaultSelectionModal(faults) {
+    const modal = document.getElementById('fault-selection-modal');
+    const container = document.getElementById('multiple-faults-container');
+    
+    // Konteyneri temizle
+    container.innerHTML = '';
+    
+    // Her bir arıza için bir seçim butonu/kartı oluştur
+    faults.forEach(fault => {
+        const div = document.createElement('div');
+        div.style.background = 'rgba(255,255,255,0.05)';
+        div.style.border = '1px solid rgba(255,255,255,0.1)';
+        div.style.borderRadius = '8px';
+        div.style.padding = '12px';
+        div.style.cursor = 'pointer';
+        div.style.transition = 'background 0.2s';
+        
+        // Hover efekti
+        div.onmouseover = () => div.style.background = 'rgba(255,255,255,0.1)';
+        div.onmouseout = () => div.style.background = 'rgba(255,255,255,0.05)';
+        
+        // Tıklanınca o arızayı seç ve formu aç
+        div.onclick = () => {
+            closeFaultSelectionModal();
+            openInterventionForm(fault);
+        };
+        
+        // İçerik: Arıza Türü ve Açıklaması
+        const typeHtml = fault.faultType ? `<span style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px;">${fault.faultType}</span>` : '';
+        const descHtml = fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-top: 5px;">${fault.faultDescription}</div>` : '';
+        const dateHtml = fault.faultDate ? `<div style="color: #64748b; font-size: 0.8rem; margin-top: 5px;">🗓️ ${new Date(fault.faultDate).toLocaleString('tr-TR')}</div>` : '';
+        
+        div.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <strong style="color: white; font-size: 1.05rem;">Müdahale Et 👉</strong>
+                ${typeHtml}
+            </div>
+            ${descHtml}
+            ${dateHtml}
+        `;
+        
+        container.appendChild(div);
+    });
+    
+    modal.style.display = 'flex';
+}
+
+function closeFaultSelectionModal() {
+    document.getElementById('fault-selection-modal').style.display = 'none';
 }
 
 function openInterventionForm(fault) {
