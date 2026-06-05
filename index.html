@@ -244,8 +244,25 @@
                 </div>
             </div>
 
+            <div class="form-group" style="display: none;" id="reasons-container">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label>Arıza Nedeni</label>
+                        <select id="modal-fault-reason" class="form-control" style="font-size: 0.9rem;">
+                            <option value="">Seçiniz...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Duruş Nedeni</label>
+                        <select id="modal-stoppage-reason" class="form-control" style="font-size: 0.9rem;">
+                            <option value="">Seçiniz...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="form-group">
-                <label>Yapılan İşlem / Kök Neden</label>
+                <label>Yapılan İşlem / Detaylar</label>
                 <textarea id="modal-action-taken" class="form-control" rows="3" placeholder="Sadece Arızayı Kapat (Çözüldü) derseniz doldurmak zorunludur..."></textarea>
             </div>
             

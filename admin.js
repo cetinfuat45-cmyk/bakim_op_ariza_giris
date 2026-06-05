@@ -217,6 +217,8 @@ async function saveToSystem() {
             await db.collection('settings').doc('config').set({
                 operators: localOperators,
                 rootCauses: localRootCauses, // Kök nedenler aynı kalır
+                faultReasons: result.data ? result.data.faultReasons || [] : [],
+                stoppageReasons: result.data ? result.data.stoppageReasons || [] : [],
                 lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
             });
 
@@ -268,11 +270,15 @@ async function fetchFromExcel() {
         
         if (result.success && result.data) {
             localOperators = result.data.operators;
-            localRootCauses = result.data.rootCauses;
+            localRootCauses = result.data.rootCauses || [];
+            const localFaultReasons = result.data.faultReasons || [];
+            const localStoppageReasons = result.data.stoppageReasons || [];
             
             await db.collection('settings').doc('config').set({
                 operators: localOperators,
                 rootCauses: localRootCauses,
+                faultReasons: localFaultReasons,
+                stoppageReasons: localStoppageReasons,
                 lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
             });
 

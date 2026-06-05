@@ -21,6 +21,8 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0TxZ8yjyP7v
 // Global Değişkenler
 let operatorsList = [];
 let rootCausesList = [];
+let faultReasonsList = [];
+let stoppageReasonsList = [];
 let loggedInOperator = null;
 
 // Sayfa yüklendiğinde çalışacaklar
@@ -41,6 +43,8 @@ async function fetchConfigFromFirebase() {
             const data = docSnap.data();
             operatorsList = data.operators || [];
             rootCausesList = data.rootCauses || [];
+            faultReasonsList = data.faultReasons || [];
+            stoppageReasonsList = data.stoppageReasons || [];
             document.getElementById('user-info').innerText = "Lütfen PIN Kodunuzu Girin";
             
             checkSavedLogin();
@@ -67,12 +71,16 @@ async function syncFromExcel() {
         if (result.success && result.data) {
             await db.collection('settings').doc('config').set({
                 operators: result.data.operators,
-                rootCauses: result.data.rootCauses,
+                rootCauses: result.data.rootCauses || [],
+                faultReasons: result.data.faultReasons || [],
+                stoppageReasons: result.data.stoppageReasons || [],
                 lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             operatorsList = result.data.operators;
-            rootCausesList = result.data.rootCauses;
+            rootCausesList = result.data.rootCauses || [];
+            faultReasonsList = result.data.faultReasons || [];
+            stoppageReasonsList = result.data.stoppageReasons || [];
             
             console.log("Sistem ilk kez Excel'den çekildi.");
             document.getElementById('user-info').innerText = "Kurulum Tamam! Lütfen PIN girin.";
@@ -404,6 +412,12 @@ function fetchOpenFaults() {
                     statusLabelHtml = `<div class="fault-status" style="color:#000; background: ${cardBg !== 'var(--surface-color)' ? cardBg : '#f59e0b'}; padding:4px 8px; border-radius:4px; display:inline-block; font-weight:bold;">⏳ ${cStatus.toLocaleUpperCase('tr-TR')}</div>`;
                 }
 
+                // Yardımcılar HTML'si
+                let helpersHtml = '';
+                if (fault.helpers && fault.helpers.length > 0) {
+                    helpersHtml = `<p class="fault-details" style="color:${textColor}; margin-top: 4px;"><strong>🤝 Yardımcılar:</strong> ${fault.helpers.join(', ')}</p>`;
+                }
+
                 // Ortak Kart HTML'si
                 const cardHtml = `
                     <div class="fault-header">
@@ -413,6 +427,7 @@ function fetchOpenFaults() {
                     <p class="fault-details" style="color:${textColor};"><strong>Vardiya:</strong> ${fault.shift || "-"}</p>
                     <p class="fault-details" style="color:${textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${fault.jobType || "-"}</span></p>
                     <p class="fault-details" style="color:${textColor};"><strong>Açıklama:</strong> ${fault.description || "Açıklama yok"}</p>
+                    ${helpersHtml}
                     ${statusLabelHtml}
                 `;
 
@@ -657,7 +672,8 @@ function openFaultSelectionModal(faults) {
         const jobTypeDisplay = fault.jobType || fault.faultType || "Belirtilmemiş";
         const typeHtml = `<div style="color: ${txtColor}; font-size: 1rem; margin-bottom: 6px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">🛠️ Tür: ${jobTypeDisplay}</div>`;
         const descHtml = fault.description ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>📝 Açıklama:</strong> ${fault.description}</div>` : (fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>📝 Açıklama:</strong> ${fault.faultDescription}</div>` : '');
-        const reporterHtml = fault.assignedTo ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;">👤 <strong>Görevli / Açan:</strong> ${fault.assignedTo}</div>` : '';
+        const reporterHtml = fault.assignedTo ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;">👤 <strong>Görevli:</strong> ${fault.assignedTo}</div>` : '';
+        const helpersModalHtml = (fault.helpers && fault.helpers.length > 0) ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;">🤝 <strong>Yardımcılar:</strong> ${fault.helpers.join(', ')}</div>` : '';
         
         // Tarihi güvenli bir şekilde dönüştür (Invalid Date hatasını önlemek için)
         const dateObj = parseFaultDate(fault.createdAt || fault.faultDate);
@@ -698,6 +714,7 @@ function openFaultSelectionModal(faults) {
             ${typeHtml}
             ${descHtml}
             ${reporterHtml}
+            ${helpersModalHtml}
             ${dateHtml}
             <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
                 ${actionButtonsHtml}
@@ -823,9 +840,34 @@ function openInterventionForm(fault) {
     // Radyo butonunu mevcut duruma getir (Yoksa Kapalı)
     const statusRadios = document.getElementsByName('faultStatus');
     const currentStatus = fault.status === "Açık" || fault.status === "Müdahale Ediliyor" ? "Kapalı" : fault.status;
+    
+    const toggleReasons = () => {
+        let isKapali = false;
+        for (let r of statusRadios) {
+            if (r.checked && r.value === 'Kapalı') isKapali = true;
+        }
+        document.getElementById('reasons-container').style.display = isKapali ? 'block' : 'none';
+    };
+
     for (let r of statusRadios) {
         if (r.value === currentStatus) r.checked = true;
+        r.onchange = toggleReasons;
     }
+    toggleReasons();
+
+    // Seçim listelerini doldur
+    const faultReasonSelect = document.getElementById('modal-fault-reason');
+    const stoppageReasonSelect = document.getElementById('modal-stoppage-reason');
+    
+    faultReasonSelect.innerHTML = '<option value="">Seçiniz...</option>';
+    faultReasonsList.forEach(r => {
+        faultReasonSelect.innerHTML += `<option value="${r}">${r}</option>`;
+    });
+    
+    stoppageReasonSelect.innerHTML = '<option value="">Seçiniz...</option>';
+    stoppageReasonsList.forEach(r => {
+        stoppageReasonSelect.innerHTML += `<option value="${r}">${r}</option>`;
+    });
     
     // (Elle yardımcı seçme listesi, sadece QR ile katılım sağlandığı için kaldırıldı)
     
@@ -854,10 +896,25 @@ function saveIntervention() {
         }
     }
     
-    // Açıklama alanı sadece "Kapalı" durumu için zorunlu olsun
-    if (selectedStatus === 'Kapalı' && !actionTaken) {
-        alert("⚠️ Lütfen 'Yapılan İşlem / Kök Neden' alanını doldurun! Arızayı kapatmak için bu alan zorunludur.");
-        return;
+    // Yeni eklenen alanlar
+    const faultReason = document.getElementById('modal-fault-reason').value;
+    const stoppageReason = document.getElementById('modal-stoppage-reason').value;
+    
+    // Açıklama alanı ve yeni listeler sadece "Kapalı" durumu için zorunlu olsun
+    if (selectedStatus === 'Kapalı') {
+        if (!actionTaken) {
+            alert("⚠️ Lütfen 'Yapılan İşlem / Detaylar' alanını doldurun! Arızayı kapatmak için bu alan zorunludur.");
+            return;
+        }
+        // Eğer E-Tablo'dan veri gelmişse seçim zorunlu olsun (henüz eklenmemişse hata vermesin)
+        if (faultReasonsList.length > 0 && !faultReason) {
+            alert("⚠️ Lütfen 'Arıza Nedeni' seçin!");
+            return;
+        }
+        if (stoppageReasonsList.length > 0 && !stoppageReason) {
+            alert("⚠️ Lütfen 'Duruş Nedeni' seçin!");
+            return;
+        }
     }
     
     // İlgili arızayı hafızadan bul (Log ve süre hesabı için)
@@ -900,6 +957,8 @@ function saveIntervention() {
     if (selectedStatus === 'Kapalı') {
         updateData.completedAt = new Date().toISOString();
         updateData.completedBy = loggedInOperator.name;
+        updateData.faultReason = faultReason;
+        updateData.stoppageReason = stoppageReason;
     } else {
         // Parça Bekliyor, Devredildi veya Geçici Çözüm ise Görevlileri Temizle (Havuz Düşsün)
         updateData.assignedTo = firebase.firestore.FieldValue.delete();
