@@ -967,15 +967,44 @@ function saveIntervention() {
         durationMin = Math.max(1, Math.round((endTime - startTime) / 60000));
     }
     
-    // Log Kaydını Oluştur
+    // Yardımcıların Loglarını Ayrı Ayrı Oluştur
+    let helperLogs = [];
+    if (fault && fault.helpers && fault.helpers.length > 0) {
+        fault.helpers.forEach(helperName => {
+            let hDuration = 0;
+            if (fault.interventions) {
+                const userLogs = fault.interventions.filter(i => i.operator === helperName && i.actionTaken === "Yardıma katıldı");
+                if (userLogs.length > 0) {
+                    const lastJoin = userLogs[userLogs.length - 1];
+                    const startTime = new Date(lastJoin.timestamp).getTime();
+                    const endTime = new Date().getTime();
+                    hDuration = Math.max(1, Math.round((endTime - startTime) / 60000));
+                }
+            }
+            
+            helperLogs.push({
+                operator: helperName,
+                helpers: [],
+                durationMin: hDuration,
+                actionTaken: selectedStatus === 'Kapalı' ? "Arıza ile birlikte yardımı tamamladı" : "Durum değişti, yardımdan ayrıldı",
+                status: selectedStatus,
+                timestamp: new Date().toISOString()
+            });
+        });
+    }
+
+    // Ana Operatörün Log Kaydını Oluştur (Artık helpers array'i boş, çünkü herkesin kendi logu var)
     const logEntry = {
         operator: loggedInOperator.name,
-        helpers: (fault && fault.helpers) ? fault.helpers : [],
+        helpers: [], 
         durationMin: durationMin,
         actionTaken: actionTaken,
         status: selectedStatus,
         timestamp: new Date().toISOString()
     };
+    
+    // Tüm logları birleştir
+    const allNewLogs = [logEntry, ...helperLogs];
     
     const faultRef = db.collection('arizalar').doc(activeInterventionFaultId);
     
@@ -983,8 +1012,7 @@ function saveIntervention() {
     let updateData = {
         status: selectedStatus,
         actionTaken: actionTaken,
-        partsChanged: partsChanged || "-",
-        interventions: firebase.firestore.FieldValue.arrayUnion(logEntry)
+        partsChanged: partsChanged || "-"
     };
     
     if (selectedStatus === 'Kapalı') {
@@ -1001,6 +1029,9 @@ function saveIntervention() {
         updateData.lastInterventionBy = loggedInOperator.name;
     }
     
+    // Firestore'da arrayUnion tek tek eleman aldığı için ...allNewLogs yapıyoruz
+    updateData.interventions = firebase.firestore.FieldValue.arrayUnion(...allNewLogs);
+
     faultRef.update(updateData).then(() => {
         alert(`✅ Arıza müdahalesi başarıyla sisteme kaydedildi! \n\nYeni Durum: ${selectedStatus}`);
         closeFaultModal();

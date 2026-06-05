@@ -393,13 +393,27 @@ async function exportAndCleanClosedFaults() {
                     
                     let d = inv.durationMin || 0;
                     
-                    let actionStr = "MÜDAHALE ETTİ";
-                    if (inv.status === 'Kapalı') actionStr = "ARIZAYI KAPATTI";
-                    else if (inv.status === 'Beklemede') actionStr = "MALZEME BEKLİYOR";
-                    else if (inv.status === 'Açık') actionStr = "ARIZADAN AYRILDI";
-                    else if (inv.actionTaken) actionStr = inv.actionTaken.toUpperCase();
+                    let actionStr = "";
+                    
+                    // Yardımcı mesajlarını olduğu gibi koru
+                    if (inv.actionTaken === "Yardıma katıldı") {
+                        actionStr = "YARDIMA KATILDI";
+                    } else if (inv.actionTaken === "Arıza ile birlikte yardımı tamamladı") {
+                        actionStr = "YARDIMI TAMAMLADI";
+                    } else if (inv.actionTaken === "Durum değişti, yardımdan ayrıldı" || inv.actionTaken === "Yardımdan ayrıldı") {
+                        actionStr = "YARDIMDAN AYRILDI";
+                    } 
+                    // Ana operatör durumları
+                    else {
+                        if (inv.status === 'Kapalı') actionStr = "ARIZAYI KAPATTI";
+                        else if (inv.status === 'Parça Bekliyor') actionStr = "PARÇA BEKLİYOR";
+                        else if (inv.status === 'Geçici Çözüm') actionStr = "GEÇİCİ ÇÖZÜM UYGULADI";
+                        else if (inv.status === 'Devredildi') actionStr = "VARDİYAYA DEVRETTİ";
+                        else if (inv.actionTaken) actionStr = inv.actionTaken.toUpperCase();
+                        else actionStr = "MÜDAHALE ETTİ";
+                    }
 
-                    return `${opName} ${actionStr} ${d} DK`;
+                    return `${opName} ${actionStr} ( ${d} dk )`;
                 }).join("\n");
             } else {
                 // Eski sistem geriye dönük uyumluluk (Eğer intervention yoksa)
