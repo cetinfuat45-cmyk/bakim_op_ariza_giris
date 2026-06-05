@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bakım Operatör Paneli</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Arıza Listesi Tasarımı */
+        #faults-container {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .fault-card {
+            background: var(--surface-color);
+            border-left: 5px solid var(--danger);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: fadeIn 0.3s ease;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .fault-card:hover {
+            transform: scale(1.02);
+        }
+        .fault-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .machine-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-color);
+            margin: 0;
+        }
+        .fault-date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .fault-details {
+            font-size: 0.9rem;
+            color: #ddd;
+            margin: 0.2rem 0;
+        }
+        .fault-status {
+            display: inline-block;
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-top: 0.5rem;
+        }
+
+        /* Tablo Tasarımı (Eski Arızalar İçin - Mobil Uyumlu) */
+        .table-container {
+            width: 100%;
+            background: var(--surface-color);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .faults-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem; /* Telefona sığması için küçültüldü */
+            table-layout: fixed; /* Sütun genişliklerini zorla */
+        }
+        .faults-table th, .faults-table td {
+            padding: 0.6rem 0.4rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            word-wrap: break-word;
+        }
+        .faults-table th {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: var(--text-muted);
+            font-weight: bold;
+        }
+        /* Uzun metinleri üç nokta (...) ile kesmek için özel sınıf */
+        .truncate-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .faults-table tr {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .faults-table tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .faults-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header" style="display: flex; align-items: center; justify-content: center; position: relative;">
+        <div>
+            <h1 style="margin:0; font-size: 1.5rem;">🛠️ Bakım Paneli</h1>
+            <p id="user-info" style="margin:0; margin-top:0.5rem; color: var(--text-muted); font-size: 0.9rem;">Lütfen PIN Kodunuzu Girin</p>
+        </div>
+        <img id="op-profile-pic" src="" alt="Profil" style="display: none; width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); position: absolute; right: 15px;">
+    </div>
+
+    <!-- GİRİŞ EKRANI -->
+    <div class="container" id="login-screen">
+        <h2 class="section-title">Teknisyen Girişi</h2>
+        <input type="number" id="pinCode" class="input-field" placeholder="4 Haneli Şifrenizi Girin">
+        <button class="btn-scan" onclick="login()">GİRİŞ YAP</button>
+    </div>
+
+    <!-- DASHBOARD EKRANI -->
+    <div class="container" id="dashboard-screen" style="display: none;">
+        
+        <!-- AÇIK ARIZALAR LİSTESİ -->
+        <h2 class="section-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+            <span>Açık Arızalar (<span id="fault-count">0</span>)</span>
+            <button onclick="fetchOpenFaults()" style="background:none; border:none; color:var(--primary); font-size:1.5rem; cursor:pointer;">🔄</button>
+        </h2>
+
+        <h3 style="color: var(--danger); margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1.1rem;">🔴 Bugün Gelenler (Acil)</h3>
+        <div id="today-faults-container" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Bugünün Kartları -->
+        </div>
+
+        <!-- BENİM ESKİ GÖREVLERİM (BUGÜNDEN ÖNCEKİLER) -->
+        <div id="my-tasks-section" style="display:none; margin-top: 2rem; background: rgba(245, 158, 11, 0.1); padding: 1rem; border-radius: 8px; border: 1px solid var(--warning);">
+            <h3 id="my-tasks-title" style="color: var(--warning); margin: 0 0 1rem 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                ⭐ Önceki Günlerden Üzerimdeki Görevler
+            </h3>
+            <div class="table-container" style="border-color: rgba(245, 158, 11, 0.3);">
+                <table class="faults-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">Tarih</th>
+                            <th style="width: 15%;">Vardiya</th>
+                            <th style="width: 25%;">Makine</th>
+                            <th style="width: 15%;">Tür</th>
+                            <th style="width: 25%;">Açıklama</th>
+                        </tr>
+                    </thead>
+                    <tbody id="my-tasks-tbody">
+                        <!-- Benim Satırlarım -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <h3 style="color: var(--text-muted); margin-top: 2rem; margin-bottom: 0.5rem; font-size: 1.1rem;">⏳ Önceki Günlerden Bekleyenler</h3>
+        <div class="table-container">
+            <table class="faults-table">
+                <thead>
+                    <tr>
+                        <th style="width: 12%;">Saat</th>
+                        <th style="width: 18%;">Vardiya</th>
+                        <th style="width: 28%;">Makine</th>
+                        <th style="width: 17%;">Görevli</th>
+                        <th style="width: 25%;">Açıklama</th>
+                    </tr>
+                </thead>
+                <tbody id="older-faults-tbody">
+                    <!-- Eski Arızalar Tablo Satırları -->
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- UYGULAMA MANTIĞI -->
+    <script src="app.js"></script>
+</body>
+</html>

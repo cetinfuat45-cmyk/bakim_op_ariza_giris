@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetici Paneli | Bakım Sistemi</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { padding-bottom: 80px; }
+        .admin-header {
+            background-color: var(--danger);
+            border-bottom: 2px solid #b91c1c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+        }
+        .btn-back {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        /* Liste Tasarımı */
+        .op-card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        .op-info {
+            flex: 1;
+        }
+        .op-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary);
+            background: var(--bg-color);
+        }
+        .op-actions button {
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .btn-del { background: var(--danger); color: white; }
+        .btn-edit { background: var(--primary); color: white; }
+        
+        /* Ekleme Formu */
+        .add-form {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border: 1px dashed var(--primary);
+        }
+        .add-form input {
+            width: 100%;
+            padding: 0.8rem;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+        
+        /* Dev Kaydet Butonu */
+        .btn-save-big {
+            display: none; /* Değişiklik olunca çıkacak */
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #10b981, #047857);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .btn-fetch {
+            background: var(--surface-color);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 0.8rem;
+            border-radius: 8px;
+            width: 100%;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="admin-header">
+        <div>
+            <h1 style="margin:0; font-size: 1.5rem; color:white;">⚙️ Yönetici Paneli</h1>
+            <p style="margin:0; margin-top:0.2rem; color: #fca5a5; font-size: 0.9rem;">Operatör Yönetimi</p>
+        </div>
+        <button class="btn-back" onclick="window.location.href='index.html'">◀ Geri Dön</button>
+    </div>
+
+    <div class="container">
+        
+        <!-- YENİ DEĞİŞİKLİKLERİ KAYDET BUTONU -->
+        <button id="btn-save-changes" class="btn-save-big" onclick="saveToSystem()">
+            💾 DEĞİŞİKLİKLERİ SİSTEME KAYDET
+        </button>
+
+        <h2 class="section-title">Yeni Ekle / Düzenle</h2>
+        <div class="add-form">
+            <input type="text" id="new-name" placeholder="Ad Soyad (Örn: HAKAN YILMAZ)">
+            <input type="number" id="new-pin" placeholder="PIN Kodu (Örn: 1234)">
+            <input type="text" id="new-role" placeholder="Yetki (Boş bırakılabilir veya 'Admin' yazılabilir)">
+            <input type="text" id="new-img" placeholder="Google Drive Resim Linki (İsteğe Bağlı)">
+            <button id="btn-add-op" class="btn-scan" style="width: 100%; margin-top: 10px;" onclick="addOperator()">➕ Ekle</button>
+        </div>
+
+        <h2 class="section-title">Kayıtlı Operatörler (<span id="op-count">0</span>)</h2>
+        <div id="operator-list">
+            <p style="text-align: center; color: var(--text-muted);">Yükleniyor...</p>
+        </div>
+
+        <hr style="border-color: var(--border-color); margin: 2rem 0;">
+
+        <!-- EXCEL'DEN ZORLA ÇEKME (Eğer biri excelden elle değiştirirse) -->
+        <button id="btn-fetch" class="btn-fetch" onclick="fetchFromExcel()">
+            ⬇️ Sadece Excel'den Çek (Mevcut durumu Excel'e eşitler)
+        </button>
+
+    </div>
+
+    <!-- FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- ADMIN MANTIĞI -->
+    <script src="admin.js"></script>
+</body>
+</html>
