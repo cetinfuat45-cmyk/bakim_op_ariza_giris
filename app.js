@@ -290,8 +290,47 @@ function handleFaultClick(fault) {
 // ----------------------------------------------------
 
 let faultsUnsubscribe = null;
+let isInitialFaultsLoad = true;
+
+// BİLDİRİM FONKSİYONLARI
+function requestNotificationPermission() {
+    if ("Notification" in window) {
+        Notification.requestPermission().then(permission => {
+            console.log("Bildirim izni durumu:", permission);
+        });
+    }
+}
+
+function playNotificationSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 nota
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.start();
+        setTimeout(() => oscillator.stop(), 500); // Yarım saniye çal ve dur
+    } catch(e) {
+        console.error("Ses çalınamadı", e);
+    }
+}
+
+function showBrowserNotification(faultData) {
+    if ("Notification" in window && Notification.permission === "granted") {
+        const title = "⚠️ YENİ ARIZA: " + (faultData.machine || 'Bilinmiyor');
+        const options = {
+            body: `Tür: ${faultData.jobType || 'Belirtilmedi'}\nAçıklama: ${faultData.description || 'Açıklama yok'}`,
+            icon: 'https://cdn-icons-png.flaticon.com/512/2885/2885417.png'
+        };
+        new Notification(title, options);
+    }
+}
 
 function fetchOpenFaults() {
+    isInitialFaultsLoad = true; // Her dashboard açılışında sıfırla
     const todayContainer = document.getElementById('today-faults-container');
     const olderTbody = document.getElementById('older-faults-tbody');
     const myTasksTbody = document.getElementById('my-tasks-tbody');
@@ -318,6 +357,15 @@ function fetchOpenFaults() {
         .where('status', 'in', ['Açık', 'Müdahale Ediliyor', 'Parça Bekliyor', 'Geçici Çözüm', 'Dış Servis Bekliyor', 'Devredildi'])
         .onSnapshot((snapshot) => {
             currentOpenFaults = []; // Listeyi sıfırla
+
+            // YENİ ARIZA GELDİĞİNDE BİLDİRİM ATMA MANTIĞI
+            snapshot.docChanges().forEach(change => {
+                if (change.type === 'added' && !isInitialFaultsLoad) {
+                    playNotificationSound();
+                    showBrowserNotification(change.doc.data());
+                }
+            });
+            isInitialFaultsLoad = false;
 
             if (snapshot.empty) {
                 todayContainer.innerHTML = `
@@ -1063,6 +1111,9 @@ function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
     
+    // Bildirim izni iste
+    requestNotificationPermission();
+
     // Açık arızaları getirmeyi (dinlemeyi) başlat
     fetchOpenFaults();
     

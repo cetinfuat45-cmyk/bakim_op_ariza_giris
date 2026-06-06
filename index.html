@@ -2,8 +2,17 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bakım Operatör Paneli</title>
+    
+    <!-- PWA GEREKSİNİMLERİ -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Arıza Paneli">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2885/2885417.png">
+
     <link rel="stylesheet" href="style.css">
     <style>
         /* Arıza Listesi Tasarımı */
@@ -306,10 +315,21 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-    <!-- QR KOD KÜTÜPHANESİ -->
+    <!-- HTML5 QR Tarayıcı Kütüphanesi -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    
+    <!-- PWA Service Worker Kaydı -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker Kaydedildi!', reg.scope))
+                    .catch(err => console.error('Service Worker Hatası:', err));
+            });
+        }
+    </script>
 
-    <!-- UYGULAMA MANTIĞI -->
+    <!-- Uygulama Kodlarımız -->
     <script src="app.js"></script>
 </body>
 </html>
