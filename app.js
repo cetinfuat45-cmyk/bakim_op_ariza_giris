@@ -340,15 +340,22 @@ function playNotificationSound() {
     if (localStorage.getItem('notificationsEnabled') === 'false') return;
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 nota
+        
+        // Klasik uyarı sesi ritmi (çift bip)
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
         gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        oscillator.start();
-        setTimeout(() => oscillator.stop(), 500); // Yarım saniye çal ve dur
+        
+        oscillator.start(audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+        oscillator.stop(audioCtx.currentTime + 0.5);
     } catch(e) {
         console.error("Ses çalınamadı", e);
     }
@@ -356,13 +363,46 @@ function playNotificationSound() {
 
 function showBrowserNotification(faultData) {
     if (localStorage.getItem('notificationsEnabled') === 'false') return;
+    
+    const titleText = "⚠️ YENİ ARIZA: " + (faultData.machine || 'Bilinmiyor');
+    const bodyText = `Tür: ${faultData.jobType || 'Belirtilmedi'}\nAçıklama: ${faultData.description || 'Açıklama yok'}`;
+    
+    // 1. Sistem (İşletim Sistemi) Bildirimi
     if ("Notification" in window && Notification.permission === "granted") {
-        const title = "⚠️ YENİ ARIZA: " + (faultData.machine || 'Bilinmiyor');
-        const options = {
-            body: `Tür: ${faultData.jobType || 'Belirtilmedi'}\nAçıklama: ${faultData.description || 'Açıklama yok'}`,
+        new Notification(titleText, {
+            body: bodyText,
             icon: 'https://cdn-icons-png.flaticon.com/512/2885/2885417.png'
-        };
-        new Notification(title, options);
+        });
+    }
+
+    // 2. Uygulama İçi (Toast) Görsel Bildirim (Garanti Yöntem)
+    const toastContainer = document.getElementById('toast-container');
+    if (toastContainer) {
+        const toast = document.createElement('div');
+        toast.style.background = 'rgba(239, 68, 68, 0.9)'; // Kırmızı alert
+        toast.style.color = 'white';
+        toast.style.padding = '15px 20px';
+        toast.style.borderRadius = '8px';
+        toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+        toast.style.border = '1px solid #fca5a5';
+        toast.style.animation = 'slideIn 0.3s ease-out forwards';
+        toast.style.cursor = 'pointer';
+        toast.innerHTML = `
+            <strong style="display:block; font-size:1.1rem; margin-bottom:5px;">${titleText}</strong>
+            <span style="font-size:0.9rem;">${bodyText.replace(/\n/g, '<br>')}</span>
+        `;
+        
+        // Tıklanınca hemen kaybolsun
+        toast.onclick = () => toast.remove();
+        
+        toastContainer.appendChild(toast);
+        
+        // 10 saniye sonra otomatik kaybolsun
+        setTimeout(() => {
+            if (toastContainer.contains(toast)) {
+                toast.remove();
+            }
+        }, 10000);
     }
 }
 
