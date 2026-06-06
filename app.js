@@ -362,6 +362,10 @@ function fetchOpenFaults() {
 
                 const assignedPerson = fault.assignedTo || "Atanmadı";
                 const isMyTask = (loggedInOperator && fault.assignedTo === loggedInOperator.name);
+                
+                const cStatus = fault.status || "Açık";
+                const isWorkInProgress = cStatus !== "Açık"; // Üzerinde çalışma varsa (Parça bekliyor, müdahale ediliyor vs.)
+                const isCard = isToday || isWorkInProgress;
 
                 // Arıza Türüne Göre Renk Belirleme Fonksiyonu
                 let cardBg = "var(--surface-color)";
@@ -370,8 +374,8 @@ function fetchOpenFaults() {
                 let mutedColor = "var(--text-muted)";
                 let isSolid = false;
                 
-                if (isToday || isMyTask) {
-                    isSolid = true; // Bugün gelenler ve görevlerim için TAM RENK
+                if (isCard || isMyTask) {
+                    isSolid = true; // Kart olarak gösterilenler ve görevlerim için TAM RENK
                 }
                 
                 if (fault.jobType) {
@@ -405,7 +409,6 @@ function fetchOpenFaults() {
 
                 // Durum Etiketini Dinamik Yap
                 let statusLabelHtml = `<div class="fault-status" style="color:${textColor}; font-weight:bold;">🔥 MÜDAHALE BEKLİYOR</div>`;
-                const cStatus = fault.status || "Açık";
                 if (cStatus === "Müdahale Ediliyor") {
                     statusLabelHtml = `<div class="fault-status" style="color:#000; background: ${cardBg !== 'var(--surface-color)' ? cardBg : '#3b82f6'}; padding:4px 8px; border-radius:4px; display:inline-block; font-weight:bold;">👨‍🔧 MÜDAHALE EDİLİYOR (${assignedPerson})</div>`;
                 } else if (cStatus !== "Açık") {
@@ -431,7 +434,7 @@ function fetchOpenFaults() {
                     ${statusLabelHtml}
                 `;
 
-                if (isToday) {
+                if (isCard) {
                     todayCount++;
                     const card = document.createElement('div');
                     card.className = 'fault-card';
@@ -685,9 +688,10 @@ function openFaultSelectionModal(faults) {
         const currentStatus = fault.status || "Açık";
         
         if (!fault.assignedTo) {
-            // Hiç kimse işe başlamamış veya arıza parça beklemeye düşmüş
+            // Hiç kimse işe başlamamış veya arıza parça/dış servis beklemeye düşmüş
             let startBtnText = "🚀 Çalışmaya Başla";
             if (currentStatus === "Parça Bekliyor") startBtnText = "📦 Parça Geldi / İşi Devral";
+            else if (currentStatus === "Dış Servis Bekliyor") startBtnText = "🚐 Dış Servis Geldi / İşe Başla";
             else if (currentStatus !== "Açık") startBtnText = "🚀 İşi Devral (" + currentStatus + ")";
 
             actionButtonsHtml = `<button onclick='startWork("${fault.id}")' style="background: var(--primary); color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">${startBtnText}</button>`;
@@ -1051,6 +1055,26 @@ function showDashboard() {
     // Açık arızaları getirmeyi (dinlemeyi) başlat
     fetchOpenFaults();
     
+    // Yükleme barı simülasyonu (100'den 0'a)
+    const progContainer = document.getElementById('update-progress-container');
+    const progBar = document.getElementById('update-progress-bar');
+    if (progContainer && progBar) {
+        progContainer.style.display = 'block';
+        progBar.style.width = '100%';
+        let width = 100;
+        const interval = setInterval(() => {
+            width -= 5;
+            progBar.style.width = width + '%';
+            if (width <= 0) {
+                clearInterval(interval);
+                setTimeout(() => { progContainer.style.display = 'none'; }, 200);
+            }
+        }, 75); // 75 * 20 = 1.5 saniye sürer
+    }
+    
+    // Arka planda eksik senkronizasyon var mı kontrol et (Yönetici yokken operatör tetikler)
+    triggerSilentDailyExport();
+    
     document.getElementById('user-info').innerText = `👤 Hoş Geldin, ${loggedInOperator.name}`;
     document.getElementById('user-info').style.color = "var(--success)";
     
@@ -1127,4 +1151,130 @@ function logout() {
 
 function startScanner() {
     alert("Barkod Okuyucu Kamera Açılıyor...");
+}
+
+// ----------------------------------------------------
+// ARKA PLAN SESSİZ AKTARIM (OPERATÖRLER İÇİN)
+// ----------------------------------------------------
+async function triggerSilentDailyExport() {
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzi0x_x4E31eY5T8V6J1V2QW35q3cI7KjXN0p-0V-mQ40gB9Jt38_z4H5bH8t4P7V0e/exec";
+    const now = new Date();
+    const today = now.toLocaleDateString('tr-TR');
+    
+    try {
+        const configRef = db.collection('settings').doc('config');
+        const configSnap = await configRef.get();
+        if (configSnap.exists) {
+            const data = configSnap.data();
+            if (data.lastGlobalExportDate === today) {
+                return; // Bugün zaten aktarım yapılmış.
+            }
+        }
+        
+        // Kilidi kapat ki aynı anda 5 kişi girerse 5 kere export etmesin
+        await configRef.set({ lastGlobalExportDate: today }, { merge: true });
+        
+        const snapshot = await db.collection('arizalar').where('status', '==', 'Kapalı').get();
+        let docIdsToDelete = [];
+        snapshot.forEach(doc => docIdsToDelete.push(doc.id));
+
+        if (docIdsToDelete.length === 0) return;
+
+        let exportData = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            let bakimLogu = "Kayıt Yok";
+            if (data.interventions && Array.isArray(data.interventions) && data.interventions.length > 0) {
+                bakimLogu = data.interventions
+                    .filter(inv => inv.actionTaken !== "Yardıma katıldı")
+                    .map(inv => {
+                    let mainOp = (inv.operator || "Bilinmeyen").toUpperCase();
+                    let helperText = "";
+                    if (inv.helpers && Array.isArray(inv.helpers)) {
+                        let validHelpers = inv.helpers.filter(h => h && h !== inv.operator);
+                        if (validHelpers.length > 0) helperText = ` (Yrd: ${validHelpers.join(", ").toUpperCase()})`;
+                    }
+                    let opName = mainOp + helperText;
+                    let d = inv.durationMin || 0;
+                    let actionStr = "";
+                    if (inv.actionTaken === "Yardıma katıldı") actionStr = "YARDIMA KATILDI";
+                    else if (inv.actionTaken === "Arıza ile birlikte yardımı tamamladı") actionStr = "YARDIMI TAMAMLADI";
+                    else if (inv.actionTaken === "Durum değişti, yardımdan ayrıldı" || inv.actionTaken === "Yardımdan ayrıldı") actionStr = "YARDIMDAN AYRILDI";
+                    else {
+                        if (inv.status === 'Kapalı') actionStr = "ARIZAYI KAPATTI";
+                        else if (inv.status === 'Parça Bekliyor') actionStr = "PARÇA BEKLİYOR";
+                        else if (inv.status === 'Dış Servis Bekliyor') actionStr = "DIŞ SERVİS BEKLİYOR";
+                        else if (inv.status === 'Geçici Çözüm') actionStr = "GEÇİCİ ÇÖZÜM UYGULADI";
+                        else if (inv.status === 'Devredildi') actionStr = "VARDİYAYA DEVRETTİ";
+                        else if (inv.actionTaken) actionStr = inv.actionTaken.toUpperCase();
+                        else actionStr = "MÜDAHALE ETTİ";
+                    }
+                    return `${opName} ${actionStr} ( ${d} dk )`;
+                }).join("\n");
+            } else {
+                let logArr = [];
+                if (data.completedBy) logArr.push(data.completedBy);
+                if (data.helpers && Array.isArray(data.helpers)) {
+                    data.helpers.forEach(h => { if (h !== data.completedBy) logArr.push(h); });
+                }
+                bakimLogu = logArr.join(", ");
+            }
+
+            let bitTarih = ""; let bitSaat = "";
+            if (data.completedAt) {
+                let d = new Date(data.completedAt);
+                bitTarih = d.toLocaleDateString('tr-TR');
+                bitSaat = d.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+            }
+
+            let basTarih = data.createdAt || "";
+            let basSaat = "";
+            let startObj = null;
+            if (data.createdAt) {
+                if (typeof data.createdAt.toDate === 'function') startObj = data.createdAt.toDate();
+                else if (data.createdAt.seconds) startObj = new Date(data.createdAt.seconds * 1000);
+                else startObj = new Date(data.createdAt);
+                
+                if (startObj && !isNaN(startObj.getTime())) {
+                    basTarih = startObj.toLocaleDateString('tr-TR');
+                    basSaat = startObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+                }
+            }
+
+            let endObj = data.completedAt ? new Date(data.completedAt) : null;
+            let totalStoppageMin = 0;
+            if (startObj && endObj && !isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
+                totalStoppageMin = Math.max(0, Math.round((endObj - startObj) / 60000));
+            }
+
+            let startEndHours = "";
+            if (basSaat && bitSaat) {
+                startEndHours = `${basSaat} - ${bitSaat}`;
+            } else if (bitSaat) {
+                startEndHours = bitSaat;
+            }
+
+            exportData.push([
+                basTarih, data.userName || "", data.costCenter || "", data.machine || "", data.shift || "",
+                data.jobType || "", data.description || "", data.photoUrl ? "Var" : "Yok", bakimLogu, bitTarih, startEndHours,
+                totalStoppageMin + " dk", data.stoppageReason || "", data.faultReason || "", data.actionTaken || "", data.partsChanged || ""
+            ]);
+        });
+
+        const payload = { action: "exportClosedFaults", data: exportData };
+        const response = await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        
+        if (result.success) {
+            const batch = db.batch();
+            docIdsToDelete.forEach(id => batch.delete(db.collection('arizalar').doc(id)));
+            await batch.commit();
+            console.log(`✅ Arka plan aktarımı başarılı: ${docIdsToDelete.length} adet.`);
+        } else {
+            // Başarısız olursa kilidi aç
+            await configRef.set({ lastGlobalExportDate: "" }, { merge: true });
+        }
+    } catch (err) {
+        console.error("Sessiz aktarım hatası:", err);
+    }
 }

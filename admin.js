@@ -20,7 +20,6 @@ let localOperators = [];
 let localRootCauses = [];
 let isDirty = false; // Değişiklik yapıldı mı?
 let editingIndex = -1; // -1 = Yeni ekleme, 0+ = Düzenleme
-let autoExportTime = ""; // Otomatik aktarım saati
 
 document.addEventListener("DOMContentLoaded", () => {
     // Admin kontrolü
@@ -52,10 +51,13 @@ async function loadFromFirebase() {
             const data = docSnap.data();
             localOperators = data.operators || [];
             localRootCauses = data.rootCauses || [];
-            autoExportTime = data.autoExportTime || "";
-            if (autoExportTime) {
-                document.getElementById('auto-export-time').value = autoExportTime;
+            
+            const lastExport = localStorage.getItem('lastAutoExportFullDate');
+            if (lastExport) {
+                document.getElementById('last-export-time-label').innerText = lastExport;
             }
+            
+            checkDailySync();
             renderOperators();
         } else {
             // Boşsa Excel'den çek
@@ -313,42 +315,19 @@ async function fetchFromExcel() {
 // ARŞİVLEME VE TEMİZLİK
 // ----------------------------------------------------
 
-async function saveAutoExportTime() {
-    const timeVal = document.getElementById('auto-export-time').value;
-    if (!timeVal) {
-        alert("Lütfen bir saat seçin!");
-        return;
-    }
-    
-    try {
-        await db.collection('settings').doc('config').set({
-            autoExportTime: timeVal
-        }, { merge: true });
-        
-        autoExportTime = timeVal;
-        alert("✅ Otomatik aktarım saati başarıyla kaydedildi: " + timeVal);
-    } catch(err) {
-        alert("Hata oluştu: " + err.message);
-    }
-}
-
-// Her dakika saati kontrol eden interval
-setInterval(() => {
-    if (!autoExportTime) return;
-    
+// Sayfa ilk açıldığında bugün aktarım yapılmış mı diye kontrol eden fonksiyon
+function checkDailySync() {
     const now = new Date();
-    const currentHourMinute = now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
-    
-    // Aynı gün birden fazla kez çalışmasını engellemek için localStorage kontrolü
-    const lastExportDate = localStorage.getItem('lastAutoExportDate');
     const today = now.toLocaleDateString('tr-TR');
-    
-    if (currentHourMinute === autoExportTime && lastExportDate !== today) {
+    const lastExportDate = localStorage.getItem('lastAutoExportDate');
+
+    // Eğer bugün hiç aktarım yapılmamışsa hemen başlat
+    if (lastExportDate !== today) {
+        console.log("Yeni gün tespit edildi. Dünün kapalı arızaları Excel'e aktarılıyor...");
         localStorage.setItem('lastAutoExportDate', today);
-        console.log("Otomatik aktarım saati geldi, işlem başlatılıyor...");
         exportAndCleanClosedFaults();
     }
-}, 60000); // 60 saniyede bir kontrol et
+}
 
 async function exportAndCleanClosedFaults() {
     const btn = document.getElementById('btn-manual-export');
@@ -359,46 +338,50 @@ async function exportAndCleanClosedFaults() {
     try {
         // Sadece 'Kapalı' olanları çek
         const snapshot = await db.collection('arizalar').where('status', '==', 'Kapalı').get();
-        if (snapshot.empty) {
-            alert("Şu anda sistemde kapalı (aktarılacak) arıza bulunmuyor.");
+        let docIdsToDelete = [];
+        snapshot.forEach(doc => docIdsToDelete.push(doc.id));
+
+        if (docIdsToDelete.length === 0) {
+            alert("Aktarılacak kapalı arıza bulunamadı!");
+            const nowStr = new Date().toLocaleString('tr-TR');
+            localStorage.setItem('lastAutoExportFullDate', nowStr);
+            const lbl = document.getElementById('last-export-time-label');
+            if (lbl) lbl.innerText = nowStr;
+            
             btn.innerHTML = oldText;
             btn.disabled = false;
             return;
         }
 
         let exportData = [];
-        let docIdsToDelete = [];
 
         snapshot.forEach(doc => {
             const data = doc.data();
             docIdsToDelete.push(doc.id);
 
             // Bakım Logu ve Toplam Süre Hesaplama
-            let bakimLogu = "";
-            let totalDuration = 0;
-
+            let bakimLogu = "Kayıt Yok";
             if (data.interventions && Array.isArray(data.interventions) && data.interventions.length > 0) {
-                // Detaylı Log (Kullanıcının İstediği Format: FUAT ÇETİN ARIZAYI KAPATTI 1 DK)
-                bakimLogu = data.interventions.map(inv => {
-                    let mainOp = (inv.operator || "Bilinmeyen").toUpperCase();
-                    let helperText = "";
-                    
-                    if (inv.helpers && Array.isArray(inv.helpers)) {
-                        let validHelpers = inv.helpers.filter(h => h && h !== inv.operator);
-                        if (validHelpers.length > 0) {
-                            helperText = ` (Yrd: ${validHelpers.join(", ").toUpperCase()})`;
+                bakimLogu = data.interventions
+                    .filter(inv => inv.actionTaken !== "Yardıma katıldı")
+                    .map(inv => {
+                        let mainOp = (inv.operator || "Bilinmeyen").toUpperCase();
+                        let helperText = "";
+                        
+                        if (inv.helpers && Array.isArray(inv.helpers)) {
+                            let validHelpers = inv.helpers.filter(h => h && h !== inv.operator);
+                            if (validHelpers.length > 0) {
+                                helperText = ` (Yrd: ${validHelpers.join(", ").toUpperCase()})`;
+                            }
                         }
-                    }
-                    let opName = mainOp + helperText;
-                    
-                    let d = inv.durationMin || 0;
+                        let opName = mainOp + helperText;
+                        
+                        let d = inv.durationMin || 0;
                     
                     let actionStr = "";
                     
                     // Yardımcı mesajlarını olduğu gibi koru
-                    if (inv.actionTaken === "Yardıma katıldı") {
-                        actionStr = "YARDIMA KATILDI";
-                    } else if (inv.actionTaken === "Arıza ile birlikte yardımı tamamladı") {
+                    if (inv.actionTaken === "Arıza ile birlikte yardımı tamamladı") {
                         actionStr = "YARDIMI TAMAMLADI";
                     } else if (inv.actionTaken === "Durum değişti, yardımdan ayrıldı" || inv.actionTaken === "Yardımdan ayrıldı") {
                         actionStr = "YARDIMDAN AYRILDI";
@@ -407,6 +390,7 @@ async function exportAndCleanClosedFaults() {
                     else {
                         if (inv.status === 'Kapalı') actionStr = "ARIZAYI KAPATTI";
                         else if (inv.status === 'Parça Bekliyor') actionStr = "PARÇA BEKLİYOR";
+                        else if (inv.status === 'Dış Servis Bekliyor') actionStr = "DIŞ SERVİS BEKLİYOR";
                         else if (inv.status === 'Geçici Çözüm') actionStr = "GEÇİCİ ÇÖZÜM UYGULADI";
                         else if (inv.status === 'Devredildi') actionStr = "VARDİYAYA DEVRETTİ";
                         else if (inv.actionTaken) actionStr = inv.actionTaken.toUpperCase();
@@ -439,6 +423,7 @@ async function exportAndCleanClosedFaults() {
 
             // A Sütunu Tarihi Düzeltme (Obje veya String olabilir) ve Toplam Duruş Süresi Hesaplama
             let basTarih = data.createdAt || "";
+            let basSaat = "";
             let startObj = null;
             if (data.createdAt) {
                 if (typeof data.createdAt.toDate === 'function') {
@@ -450,7 +435,8 @@ async function exportAndCleanClosedFaults() {
                 }
                 
                 if (startObj && !isNaN(startObj.getTime())) {
-                    basTarih = startObj.toLocaleDateString('tr-TR') + " " + startObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+                    basTarih = startObj.toLocaleDateString('tr-TR');
+                    basSaat = startObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
                 }
             }
 
@@ -460,8 +446,16 @@ async function exportAndCleanClosedFaults() {
                 totalStoppageMin = Math.max(0, Math.round((endObj - startObj) / 60000));
             }
 
+            // K Sütunu için Start - Bitiş formatı
+            let startEndHours = "";
+            if (basSaat && bitSaat) {
+                startEndHours = `${basSaat} - ${bitSaat}`;
+            } else if (bitSaat) {
+                startEndHours = bitSaat;
+            }
+
             exportData.push([
-                basTarih,                      // A (Düzeltildi)
+                basTarih,                      // A (Sadece Tarih)
                 data.userName || "",           // B
                 data.costCenter || "",         // C
                 data.machine || "",            // D
@@ -471,7 +465,7 @@ async function exportAndCleanClosedFaults() {
                 data.photoUrl ? "Var" : "Yok", // H
                 bakimLogu,                     // I
                 bitTarih,                      // J
-                bitSaat,                       // K
+                startEndHours,                 // K (Start - Bitiş Saatleri)
                 totalStoppageMin + " dk",      // L (Makine Toplam Duruşu)
                 data.stoppageReason || "",     // M
                 data.faultReason || "",        // N (Yer Değiştirdi: Arıza Nedeni -> YAPILAN BAKIM sütunu)
@@ -500,6 +494,11 @@ async function exportAndCleanClosedFaults() {
                 batch.delete(db.collection('arizalar').doc(id));
             });
             await batch.commit();
+            
+            const nowStr = new Date().toLocaleString('tr-TR');
+            localStorage.setItem('lastAutoExportFullDate', nowStr);
+            const lbl = document.getElementById('last-export-time-label');
+            if (lbl) lbl.innerText = nowStr;
 
             alert(`✅ İşlem Başarılı!\n${docIdsToDelete.length} adet arıza Excel'e aktarıldı ve sistemden silindi.`);
         } else {
