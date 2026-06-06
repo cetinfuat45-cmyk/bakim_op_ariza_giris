@@ -156,20 +156,11 @@ function loadMachineDictionary() {
     }
 }
 
-function openSettings() {
-    document.getElementById('settings-modal').style.display = 'flex';
-}
-
-function closeSettings() {
-    document.getElementById('settings-modal').style.display = 'none';
-}
-
-// JSONP Callback Fonksiyonunu Ayarlıyoruz
+// JSONP Callback Fonksiyonunu Ayarlıyoruz (Sessiz Çalışır)
 window.google = {
     visualization: {
         Query: {
             setResponse: function(data) {
-                const btn = document.querySelector('#settings-modal button');
                 try {
                     let newDict = {};
                     if (data && data.table && data.table.rows) {
@@ -187,19 +178,13 @@ window.google = {
                     if(Object.keys(newDict).length > 0) {
                         machineDictionary = newDict;
                         localStorage.setItem('akg_machine_dictionary', JSON.stringify(newDict));
-                        alert(`✅ Başarılı! ${Object.keys(newDict).length} adet makine sisteme kaydedildi.`);
-                        closeSettings();
+                        console.log(`✅ Arka plan sözlük güncellemesi tamamlandı: ${Object.keys(newDict).length} makine.`);
                     } else {
-                        alert("❌ Uyarı: Çekilen listede makine bulunamadı.");
+                        console.warn("Makine listesi çekildi ama veri bulunamadı.");
                     }
                 } catch(e) {
-                    alert("❌ Veri işlenirken hata oluştu: " + e.message);
+                    console.error("Veri işlenirken hata oluştu: " + e.message);
                 } finally {
-                    if(btn) {
-                        btn.innerHTML = "🔄 Makine Listesini Güncelle";
-                        btn.disabled = false;
-                    }
-                    // Eklenen script etiketini temizle
                     const script = document.getElementById('gviz-script');
                     if(script) script.remove();
                 }
@@ -209,29 +194,17 @@ window.google = {
 };
 
 function updateMachineList() {
-    const btn = document.querySelector('#settings-modal button');
-    if(btn) {
-        btn.innerHTML = "⏳ Güncelleniyor...";
-        btn.disabled = true;
-    }
-
     // CORS ve Proxy hatalarını %100 aşmak için fetch yerine JSONP (script tag) yöntemi kullanıyoruz.
     const url = `https://docs.google.com/spreadsheets/d/13pjcli1vFeM_DuHk7y5HV1DBpqXE_IlaQtdhMsvf_6U/gviz/tq?tqx=out:json&gid=1078561341&t=${new Date().getTime()}`;
     
-    // Eski script varsa temizle
     const oldScript = document.getElementById('gviz-script');
     if(oldScript) oldScript.remove();
 
-    // Yeni script etiketi oluştur ve sayfaya ekle. Bu, veriyi doğrudan çeker ve üstte tanımladığımız setResponse fonksiyonunu tetikler.
     const script = document.createElement('script');
     script.id = 'gviz-script';
     script.src = url;
     script.onerror = function() {
-        alert("❌ Ağ Hatası: Liste indirilemedi. İnternet bağlantınızı veya güvenlik duvarınızı kontrol edin.");
-        if(btn) {
-            btn.innerHTML = "🔄 Makine Listesini Güncelle";
-            btn.disabled = false;
-        }
+        console.error("Ağ Hatası: Makine Sözlüğü indirilemedi.");
     };
     document.body.appendChild(script);
 }
@@ -1055,10 +1028,17 @@ function showDashboard() {
     // Açık arızaları getirmeyi (dinlemeyi) başlat
     fetchOpenFaults();
     
+    // Aynı zamanda arka planda Excel'den Makine ID Sözlüğünü güncelle (Sessizce)
+    updateMachineList();
+    
     // Yükleme barı simülasyonu (100'den 0'a)
     const progContainer = document.getElementById('update-progress-container');
     const progBar = document.getElementById('update-progress-bar');
     if (progContainer && progBar) {
+        // İçindeki yazıyı güncelleyelim
+        const textDiv = progContainer.querySelector('div');
+        if (textDiv) textDiv.innerText = "Açık Arızalar ve Makine Sözlüğü Güncelleniyor...";
+        
         progContainer.style.display = 'block';
         progBar.style.width = '100%';
         let width = 100;
