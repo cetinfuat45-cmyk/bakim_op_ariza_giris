@@ -29,6 +29,9 @@ let loggedInOperator = null;
 document.addEventListener("DOMContentLoaded", () => {
     // 1. Önce verileri Firebase'den çek
     fetchConfigFromFirebase();
+    
+    // 2. Hafızadaki makine sözlüğünü yükle (QR hızlandırması için)
+    loadMachineDictionary();
 });
 
 // Ayarları Firebase'den Hızlıca Çek
