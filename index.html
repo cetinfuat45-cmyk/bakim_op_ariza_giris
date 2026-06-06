@@ -58,19 +58,21 @@
             margin-top: 0.5rem;
         }
 
-        /* Tablo Tasarımı (Eski Arızalar İçin - Mobil Uyumlu) */
+        /* Tablo Tasarımı (Eski Arızalar İçin - Kaydırılabilir) */
         .table-container {
             width: 100%;
             background: var(--surface-color);
             border-radius: 8px;
             border: 1px solid var(--border-color);
-            overflow: hidden;
+            overflow-x: auto; /* Mobil cihazlarda yana doğru kaydırmayı aç */
+            -webkit-overflow-scrolling: touch; /* iOS için yumuşak kaydırma */
         }
         .faults-table {
             width: 100%;
+            min-width: 600px; /* Sütunların sıkışmasını engellemek için minimum genişlik */
             border-collapse: collapse;
-            font-size: 0.75rem; /* Telefona sığması için küçültüldü */
-            table-layout: fixed; /* Sütun genişliklerini zorla */
+            font-size: 0.8rem;
+            table-layout: auto;
         }
         .faults-table th, .faults-table td {
             padding: 0.6rem 0.4rem;
@@ -100,47 +102,7 @@
             border-bottom: none;
         }
 
-        /* MOBİL İÇİN TABLO DÜZENİ */
-        @media (max-width: 600px) {
-            .faults-table thead {
-                display: none;
-            }
-            .faults-table tr {
-                display: flex;
-                flex-direction: column;
-                margin-bottom: 15px;
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                background: rgba(30, 41, 59, 0.4);
-                padding: 10px;
-            }
-            .faults-table td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 1px solid rgba(255,255,255,0.05);
-                padding: 8px 0;
-                width: 100% !important;
-                text-align: right;
-                font-size: 0.85rem;
-            }
-            .faults-table td:last-child {
-                border-bottom: none;
-            }
-            .faults-table td::before {
-                content: attr(data-label);
-                font-weight: bold;
-                color: var(--primary);
-                margin-right: 15px;
-                text-align: left;
-                flex-shrink: 0;
-            }
-            .truncate-text {
-                white-space: normal;
-                word-wrap: break-word;
-                text-align: right;
-            }
-        }
+        /* Kart görünümü kaldırıldı, yerine yatay kaydırma (overflow-x: auto) eklendi. */
     </style>
 </head>
 <body>
@@ -152,8 +114,8 @@
         <img id="op-profile-pic" src="" alt="Profil" style="display: none; width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); position: absolute; right: 15px;">
     </div>
 
-    <!-- SİSTEM MENÜSÜ İKONU (SOLDA, SADE GÖRÜNÜM) -->
-    <button id="main-menu-btn" onclick="const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="position: absolute; top: 20px; left: 20px; z-index: 1000; background: none; border: none; color: white; font-size: 26px; cursor: pointer; padding: 0; box-shadow: none;">
+    <!-- SİSTEM MENÜSÜ İKONU (SOLDA, SADE GÖRÜNÜM, BÜYÜTÜLMÜŞ DOKUNMA ALANI) -->
+    <button id="main-menu-btn" onclick="event.stopPropagation(); const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="position: absolute; top: 20px; left: 20px; z-index: 1000; background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 10px; margin-top: -10px; margin-left: -10px; box-shadow: none;">
         ☰
     </button>
     
