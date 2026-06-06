@@ -294,6 +294,9 @@ let isInitialFaultsLoad = true;
 
 // BİLDİRİM FONKSİYONLARI
 function requestNotificationPermission() {
+    // Menüdeki butonun ilk durumunu ayarla
+    updateNotificationBtnUI();
+    
     if ("Notification" in window) {
         Notification.requestPermission().then(permission => {
             console.log("Bildirim izni durumu:", permission);
@@ -301,7 +304,40 @@ function requestNotificationPermission() {
     }
 }
 
+function updateNotificationBtnUI() {
+    const btn = document.getElementById('btn-toggle-notifications');
+    if (!btn) return;
+    const isEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
+    if (isEnabled) {
+        btn.innerHTML = '🔔 Bildirimler: AÇIK';
+        btn.style.background = 'rgba(59, 130, 246, 0.2)';
+        btn.style.color = '#93c5fd';
+        btn.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+    } else {
+        btn.innerHTML = '🔕 Bildirimler: KAPALI';
+        btn.style.background = 'rgba(100, 116, 139, 0.2)';
+        btn.style.color = '#cbd5e1';
+        btn.style.borderColor = 'rgba(100, 116, 139, 0.4)';
+    }
+}
+
+function toggleNotifications() {
+    const isEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
+    if (isEnabled) {
+        localStorage.setItem('notificationsEnabled', 'false');
+        alert("Bildirimler KAPATILDI. Artık yeni arızalarda ses veya uyarı almayacaksınız.");
+    } else {
+        localStorage.setItem('notificationsEnabled', 'true');
+        alert("Bildirimler AÇILDI. Yeni arızalarda sesli ve görsel uyarı alacaksınız.");
+        requestNotificationPermission(); // Açıldığı an izin yoksa tekrar ister
+    }
+    updateNotificationBtnUI();
+    // Menüyü otomatik kapatma
+    // document.getElementById('settings-menu').style.display = 'none';
+}
+
 function playNotificationSound() {
+    if (localStorage.getItem('notificationsEnabled') === 'false') return;
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioCtx.createOscillator();
@@ -319,6 +355,7 @@ function playNotificationSound() {
 }
 
 function showBrowserNotification(faultData) {
+    if (localStorage.getItem('notificationsEnabled') === 'false') return;
     if ("Notification" in window && Notification.permission === "granted") {
         const title = "⚠️ YENİ ARIZA: " + (faultData.machine || 'Bilinmiyor');
         const options = {
