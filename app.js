@@ -15,6 +15,26 @@ if (!firebase.apps.length) {
 let db = firebase.firestore();
 let currentOpenFaults = []; // Taranan makineyi bulmak için RAM'de tutulacak
 
+// İsim Kısaltma Fonksiyonu (Ahmet Yılmaz -> A.Yılmaz)
+function shortName(fullName) {
+    if (!fullName) return "";
+    // Özel olarak Engin Vardar istendiyse
+    if (fullName.toLowerCase() === "engin vardar") return "E.Vardar";
+    
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    
+    let result = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+        result += parts[i].charAt(0).toUpperCase() + ".";
+    }
+    // Son ismin ilk harfini büyük, kalanını küçük yap (opsiyonel, olduğu gibi de bırakılabilir)
+    const lastName = parts[parts.length - 1];
+    result += lastName.charAt(0).toUpperCase() + lastName.slice(1).toLowerCase();
+    
+    return result;
+}
+
 // Sizin Google Apps Script Web App Linkiniz
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0TxZ8yjyP7v3q3tYqMxKs7stPL7g7AvhLRxOfm3Ovci0QGD8vM_IwhkmXBc0wu5BZ/exec";
 
@@ -32,6 +52,18 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // 2. Hafızadaki makine sözlüğünü yükle (QR hızlandırması için)
     loadMachineDictionary();
+
+    // Menü dışında bir yere tıklanınca menüyü kapat
+    document.addEventListener("click", (e) => {
+        const menu = document.getElementById('settings-menu');
+        const menuBtn = document.getElementById('main-menu-btn');
+        if (menu && menu.style.display === 'flex') {
+            // Tıklanan yer menü veya menü butonu değilse kapat
+            if (!menu.contains(e.target) && (!menuBtn || !menuBtn.contains(e.target))) {
+                menu.style.display = 'none';
+            }
+        }
+    });
 });
 
 // Ayarları Firebase'den Hızlıca Çek
@@ -434,11 +466,11 @@ function fetchOpenFaults() {
                     
                     tr.onclick = () => handleFaultClick(fault);
                     tr.innerHTML = `
-                        <td style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
-                        <td class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
-                        <td class="truncate-text" style="color: ${textColor};"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
-                        <td class="truncate-text" style="color: ${textColor}; font-weight: bold;">${fault.jobType || "-"}</td>
-                        <td class="truncate-text" style="color: ${textColor};">${fault.description || "-"}</td>
+                        <td data-label="Tarih" style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
+                        <td data-label="Vardiya" class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
+                        <td data-label="Makine" class="truncate-text" style="color: ${textColor};"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
+                        <td data-label="Tür" class="truncate-text" style="color: ${textColor}; font-weight: bold;">${fault.jobType || "-"}</td>
+                        <td data-label="Açıklama" class="truncate-text" style="color: ${textColor};">${fault.description || "-"}</td>
                     `;
                     myTasksTbody.appendChild(tr);
                 } else {
@@ -489,11 +521,11 @@ function fetchOpenFaults() {
                         tr.style.borderLeft = `4px solid ${txtColor}`;
                         tr.onclick = () => handleFaultClick(fault);
                         tr.innerHTML = `
-                            <td style="color: var(--danger); font-weight: bold; text-align: center;">${timeStr}</td>
-                            <td class="truncate-text" style="color: var(--text-muted);">${fault.shift || "-"}</td>
-                            <td class="truncate-text"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
-                            <td class="truncate-text" style="color: var(--warning); font-weight: bold;">${assignedPerson}</td>
-                            <td class="truncate-text">${fault.description || "-"}</td>
+                            <td data-label="Saat" style="color: var(--danger); font-weight: bold; text-align: center;">${timeStr}</td>
+                            <td data-label="Vardiya" class="truncate-text" style="color: var(--text-muted);">${fault.shift || "-"}</td>
+                            <td data-label="Makine" class="truncate-text"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
+                            <td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${assignedPerson}</td>
+                            <td data-label="Açıklama" class="truncate-text">${fault.description || "-"}</td>
                         `;
                         olderTbody.appendChild(tr);
                     });
@@ -1015,6 +1047,9 @@ function saveIntervention() {
     faultRef.update(updateData).then(() => {
         alert(`✅ Arıza müdahalesi başarıyla sisteme kaydedildi! \n\nYeni Durum: ${selectedStatus}`);
         closeFaultModal();
+        if (selectedStatus === 'Kapalı') {
+            fetchClosedToday();
+        }
     }).catch(error => {
         alert("Hata oluştu: " + error.message);
     }).finally(() => {
@@ -1054,11 +1089,10 @@ function showDashboard() {
             }
         }, 75); // 75 * 20 = 1.5 saniye sürer
     }
-    
     // Arka planda eksik senkronizasyon var mı kontrol et (Yönetici yokken operatör tetikler)
     triggerSilentDailyExport();
     
-    document.getElementById('user-info').innerText = `👤 Hoş Geldin, ${loggedInOperator.name}`;
+    document.getElementById('user-info').innerText = `👤 Hoş Geldin, ${shortName(loggedInOperator.name)}`;
     document.getElementById('user-info').style.color = "var(--success)";
     
     // Profil resmini göster
@@ -1074,23 +1108,6 @@ function showDashboard() {
         picEl.style.display = 'block';
     } else {
         picEl.style.display = 'none';
-    }
-    
-    // Çıkış Yap butonu ekle
-    let logoutBtn = document.getElementById('btn-logout-header');
-    if (!logoutBtn) {
-        logoutBtn = document.createElement('button');
-        logoutBtn.id = 'btn-logout-header';
-        logoutBtn.innerText = "Çıkış";
-        logoutBtn.style.padding = "0.3rem 0.6rem";
-        logoutBtn.style.marginLeft = "10px";
-        logoutBtn.style.background = "var(--danger)";
-        logoutBtn.style.color = "white";
-        logoutBtn.style.border = "none";
-        logoutBtn.style.borderRadius = "4px";
-        logoutBtn.style.cursor = "pointer";
-        logoutBtn.onclick = logout;
-        document.getElementById('user-info').appendChild(logoutBtn);
     }
 
     // ADMIN KONTROLÜ - Eğer Yetkisi Admin veya Yönetici ise
@@ -1257,7 +1274,119 @@ async function triggerSilentDailyExport() {
             // Başarısız olursa kilidi aç
             await configRef.set({ lastGlobalExportDate: "" }, { merge: true });
         }
-    } catch (err) {
-        console.error("Sessiz aktarım hatası:", err);
+    } catch(err) {
+        console.error("Sessiz günlük aktarım hatası:", err);
     }
+}
+
+// ----------------------------------------------------
+// BUGÜN KAPATILAN İŞLER LİSTESİ (SİSTEM MENÜSÜ MODALI)
+// ----------------------------------------------------
+function openClosedTodayModal() {
+    const modal = document.getElementById('closed-today-modal');
+    const listContainer = document.getElementById('closed-today-list');
+    const loadingText = document.getElementById('closed-today-loading');
+    
+    modal.style.display = 'flex';
+    listContainer.innerHTML = '';
+    loadingText.style.display = 'block';
+
+    const todayStr = new Date().toLocaleDateString('tr-TR');
+
+    db.collection('arizalar')
+        .where('status', '==', 'Kapalı')
+        .get()
+        .then(snapshot => {
+            let closedTodayFaults = [];
+            let myClosedJobsCount = 0;
+            let myTotalMinutes = 0;
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.completedAt) {
+                    const compDateObj = new Date(data.completedAt);
+                    if (!isNaN(compDateObj.getTime())) {
+                        const compStr = compDateObj.toLocaleDateString('tr-TR');
+                        if (compStr === todayStr) {
+                            closedTodayFaults.push({ id: doc.id, ...data, compDateObj });
+
+                            // Operatörün kendi istatistiklerini hesapla
+                            if (loggedInOperator) {
+                                if (data.completedBy === loggedInOperator.name) {
+                                    myClosedJobsCount++;
+                                }
+                                if (data.interventions) {
+                                    data.interventions.forEach(log => {
+                                        if (log.operator === loggedInOperator.name && log.durationMin) {
+                                            myTotalMinutes += parseInt(log.durationMin) || 0;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            loadingText.style.display = 'none';
+
+            // Kendi özetimi en üste ekle
+            if (loggedInOperator) {
+                const summaryCard = document.createElement('div');
+                summaryCard.style.background = 'linear-gradient(135deg, #1e293b, #0f172a)';
+                summaryCard.style.border = '1px solid var(--primary)';
+                summaryCard.style.borderRadius = '8px';
+                summaryCard.style.padding = '15px';
+                summaryCard.style.marginBottom = '20px';
+                summaryCard.style.textAlign = 'center';
+                summaryCard.innerHTML = `
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);">👤 Günlük Özetiniz (${shortName(loggedInOperator.name)})</h4>
+                    <div style="display: flex; justify-content: space-around;">
+                        <div><span style="font-size: 1.5rem; color: white; font-weight: bold;">${myClosedJobsCount}</span><br><span style="font-size: 0.8rem; color: var(--text-muted);">Kapatılan İş</span></div>
+                        <div><span style="font-size: 1.5rem; color: white; font-weight: bold;">${myTotalMinutes}</span><br><span style="font-size: 0.8rem; color: var(--text-muted);">Dk. Süre</span></div>
+                    </div>
+                `;
+                listContainer.appendChild(summaryCard);
+            }
+
+            if (closedTodayFaults.length === 0) {
+                const emptyMsg = document.createElement('p');
+                emptyMsg.style.textAlign = 'center';
+                emptyMsg.style.color = 'var(--text-muted)';
+                emptyMsg.innerText = 'Bugün henüz hiçbir arıza kapatılmamış.';
+                listContainer.appendChild(emptyMsg);
+                return;
+            }
+
+            // En son kapatılan en üstte çıksın
+            closedTodayFaults.sort((a, b) => b.compDateObj - a.compDateObj);
+
+            closedTodayFaults.forEach(fault => {
+                const timeStr = fault.compDateObj.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                const closedBy = shortName(fault.completedBy) || "Bilinmiyor";
+                const action = fault.actionTaken || "Açıklama girilmedi";
+                const machine = fault.machine || "Bilinmiyor";
+
+                const card = document.createElement('div');
+                card.style.background = 'rgba(16, 185, 129, 0.1)';
+                card.style.borderLeft = '4px solid var(--success)';
+                card.style.borderRadius = '6px';
+                card.style.padding = '10px';
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; margin-bottom: 5px;">
+                        <span style="color: var(--text-muted); font-size: 0.85rem;">🕒 ${timeStr}</span>
+                        <span style="color: white; font-weight: bold; font-size: 0.95rem;">${machine}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #ddd; margin-bottom: 5px;"><strong>Kapatan:</strong> ${closedBy}</div>
+                    <div style="font-size: 0.85rem; color: #aaa;"><strong>İşlem:</strong> ${action}</div>
+                `;
+                listContainer.appendChild(card);
+            });
+
+        })
+        .catch(err => {
+            console.error("Kapalı arızalar çekilirken hata:", err);
+            loadingText.style.display = 'none';
+            listContainer.innerHTML = '<p style="text-align: center; color: var(--danger);">Veriler çekilirken hata oluştu!</p>';
+        });
 }
