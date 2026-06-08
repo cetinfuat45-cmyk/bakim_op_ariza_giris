@@ -350,7 +350,17 @@ function registerFCMToken() {
             return;
         }
         const messaging = firebase.messaging();
-        messaging.getToken({ vapidKey: "BDVxJHIAOVJRpKUROchlsBl7L_9Yv_irAhpLDFMU_wqb12GjxAO23Fo1cmUzi9tqjxZRS4VOckA218cxP3qSs2Y" }).then((currentToken) => {
+        
+        // GitHub Pages alt klasöründe barındırıldığı için Service Worker'ı manuel kaydediyoruz
+        navigator.serviceWorker.register('./firebase-messaging-sw.js')
+        .then((registration) => {
+            console.log("Service Worker başarıyla kaydedildi: ", registration);
+            return messaging.getToken({ 
+                vapidKey: "BDVxJHIAOVJRpKUROchlsBl7L_9Yv_irAhpLDFMU_wqb12GjxAO23Fo1cmUzi9tqjxZRS4VOckA218cxP3qSs2Y",
+                serviceWorkerRegistration: registration
+            });
+        })
+        .then((currentToken) => {
             if (currentToken) {
                 console.log("FCM Token Alındı:", currentToken);
                 const operatorName = localStorage.getItem("loggedInOperator");
@@ -365,11 +375,12 @@ function registerFCMToken() {
             }
         }).catch((err) => {
             console.log('FCM Token hatası: ', err);
+            // Hata detayını ekranda görmek için geçici toast mesajı
+            showCustomToast("FCM Hatası", err.toString(), "error");
         });
         
         messaging.onMessage((payload) => {
             console.log('Ön planda mesaj geldi: ', payload);
-            // Uygulama açıkken (ön plandayken) de Toast gösterebiliriz
             showCustomToast(payload.notification.title || "YENİ ARIZA", payload.notification.body || "Sisteme yeni arıza girildi.", "error");
         });
     } catch (e) {
