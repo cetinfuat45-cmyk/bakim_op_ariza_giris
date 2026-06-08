@@ -12,7 +12,36 @@ const firebaseConfig = {
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
-let db = firebase.firestore();
+const db = firebase.firestore();
+
+// SİSTEMDEKİ TÜM ALERT'LERİ ŞIK BİR HALE GETİRMEK İÇİN (SweetAlert2 OVERRIDE)
+window.alert = function(message) {
+    const isError = message.toLowerCase().includes('hata') || message.toLowerCase().includes('lütfen') || message.includes('⚠️') || message.includes('❌');
+    const isSuccess = message.includes('✅') || message.includes('🚀') || message.toLowerCase().includes('başarı');
+    
+    let iconType = 'info';
+    if (isError) iconType = 'warning';
+    if (isSuccess) iconType = 'success';
+
+    // Eğer sayfada SweetAlert yüklüyse onu kullan
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            text: message,
+            icon: iconType,
+            background: '#1e293b',
+            color: '#f8fafc',
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'Tamam',
+            customClass: {
+                popup: 'rounded-xl border border-slate-700 shadow-2xl'
+            }
+        });
+    } else {
+        // Yüklü değilse orjinale düş (fallback)
+        console.log("ALERT:", message);
+    }
+};
+
 let currentOpenFaults = []; // Taranan makineyi bulmak için RAM'de tutulacak
 
 // İsim Kısaltma Fonksiyonu (Ahmet Yılmaz -> A.Yılmaz)
@@ -872,25 +901,42 @@ function closeFaultSelectionModal() {
 function startWork(faultId) {
     if (!loggedInOperator) return;
     
-    const confirmStart = confirm(`Bu arızaya ana görevli olarak müdahale etmeye başlamak istiyor musunuz?`);
-    if (!confirmStart) return;
-    
-    const btn = event.currentTarget;
-    const oldText = btn.innerText;
-    btn.innerText = "⏳ Başlatılıyor...";
-    btn.disabled = true;
+    Swal.fire({
+        title: 'Müdahaleye Başla',
+        text: 'Bu arızaya ana görevli olarak müdahale etmeye başlamak istiyor musunuz?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#ef4444',
+        confirmButtonText: 'Evet, Başla',
+        cancelButtonText: 'Vazgeç',
+        background: '#1e293b',
+        color: '#f8fafc'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        
+        // Butonu bul (Tıklanan elementi bulmak asenkron işlemden sonra zor olabilir, bu yüzden id ile veya genel olarak yükleniyor diyebiliriz)
+        // Ancak işi basitleştirmek için genel bir SweetAlert loading gösterebiliriz
+        Swal.fire({
+            title: 'Başlatılıyor...',
+            allowOutsideClick: false,
+            background: '#1e293b',
+            color: '#f8fafc',
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
 
-    db.collection('arizalar').doc(faultId).update({
-        status: "Müdahale Ediliyor",
-        assignedTo: loggedInOperator.name,
-        startedAt: new Date().toISOString()
-    }).then(() => {
-        alert("🚀 Çalışma başarıyla başlatıldı! Kolay gelsin.");
-        closeFaultSelectionModal();
-    }).catch(err => {
-        alert("Hata oluştu: " + err.message);
-        btn.innerText = oldText;
-        btn.disabled = false;
+        db.collection('arizalar').doc(faultId).update({
+            status: "Müdahale Ediliyor",
+            assignedTo: loggedInOperator.name,
+            startedAt: new Date().toISOString()
+        }).then(() => {
+            alert("🚀 Çalışma başarıyla başlatıldı! Kolay gelsin.");
+            closeFaultSelectionModal();
+        }).catch(err => {
+            alert("Hata oluştu: " + err.message);
+        });
     });
 }
 
@@ -922,33 +968,49 @@ function joinAsHelper(faultId) {
         return;
     }
 
-    const confirmJoin = confirm(`Bu arızaya yardımcı bakımcı olarak katılmak istiyor musunuz?\n\n(Kayıtlarınıza eklenecektir.)`);
-    if (!confirmJoin) return;
-    
-    const btn = event.currentTarget;
-    const oldText = btn.innerText;
-    btn.innerText = "⏳ Katılınıyor...";
-    btn.disabled = true;
+    // Yardımcı eklenmesini onayla
+    Swal.fire({
+        title: 'Yardımcı Olarak Katıl',
+        text: 'Bu arızaya yardımcı bakımcı olarak katılmak istiyor musunuz? (Kayıtlarınıza eklenecektir.)',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3b82f6',
+        cancelButtonColor: '#ef4444',
+        confirmButtonText: 'Evet, Katıl',
+        cancelButtonText: 'Vazgeç',
+        background: '#1e293b',
+        color: '#f8fafc'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        
+        Swal.fire({
+            title: 'Katılınıyor...',
+            allowOutsideClick: false,
+            background: '#1e293b',
+            color: '#f8fafc',
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
 
-    const joinLog = {
-        operator: loggedInOperator.name,
-        helpers: [],
-        durationMin: 0,
-        actionTaken: "Yardıma katıldı",
-        status: "Yardımcı",
-        timestamp: new Date().toISOString()
-    };
+        const joinLog = {
+            operator: loggedInOperator.name,
+            helpers: [],
+            durationMin: 0,
+            actionTaken: "Yardıma katıldı",
+            status: "Yardımcı",
+            timestamp: new Date().toISOString()
+        };
 
-    db.collection('arizalar').doc(faultId).update({
-        helpers: firebase.firestore.FieldValue.arrayUnion(loggedInOperator.name),
-        interventions: firebase.firestore.FieldValue.arrayUnion(joinLog)
-    }).then(() => {
-        alert("✅ Başarıyla arızaya yardımcı olarak katıldınız!");
-        closeFaultSelectionModal();
-    }).catch(err => {
-        alert("Hata oluştu: " + err.message);
-        btn.innerText = oldText;
-        btn.disabled = false;
+        db.collection('arizalar').doc(faultId).update({
+            helpers: firebase.firestore.FieldValue.arrayUnion(loggedInOperator.name),
+            interventions: firebase.firestore.FieldValue.arrayUnion(joinLog)
+        }).then(() => {
+            alert("✅ Başarıyla arızaya yardımcı olarak katıldınız!");
+            closeFaultSelectionModal();
+        }).catch(err => {
+            alert("Hata oluştu: " + err.message);
+        });
     });
 }
 
@@ -956,46 +1018,61 @@ function joinAsHelper(faultId) {
 function leaveHelper(faultId) {
     if (!loggedInOperator) return;
     
-    const confirmLeave = confirm(`Bu arızadaki görevinizi (yardımcı bakımcı) sonlandırıp ayrılmak istiyor musunuz?`);
-    if (!confirmLeave) return;
-    
-    const btn = event.currentTarget;
-    const oldText = btn.innerText;
-    btn.innerText = "⏳ Ayrılıyorsunuz...";
-    btn.disabled = true;
+    Swal.fire({
+        title: 'Görevden Ayrıl',
+        text: 'Bu arızadaki görevinizi (yardımcı bakımcı) sonlandırıp ayrılmak istiyor musunuz?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Evet, Ayrıl',
+        cancelButtonText: 'İptal',
+        background: '#1e293b',
+        color: '#f8fafc'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
 
-    const fault = currentOpenFaults.find(f => f.id === faultId);
-    let durationMin = 0;
-    if (fault && fault.interventions) {
-        // Find the LAST time this operator joined
-        const userLogs = fault.interventions.filter(i => i.operator === loggedInOperator.name && i.actionTaken === "Yardıma katıldı");
-        if (userLogs.length > 0) {
-            const lastJoin = userLogs[userLogs.length - 1];
-            const startTime = new Date(lastJoin.timestamp).getTime();
-            const endTime = new Date().getTime();
-            durationMin = Math.max(1, Math.round((endTime - startTime) / 60000));
+        Swal.fire({
+            title: 'Ayrılıyorsunuz...',
+            allowOutsideClick: false,
+            background: '#1e293b',
+            color: '#f8fafc',
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const fault = currentOpenFaults.find(f => f.id === faultId);
+        let durationMin = 0;
+        if (fault && fault.interventions) {
+            // Find the LAST time this operator joined
+            const userLogs = fault.interventions.filter(i => i.operator === loggedInOperator.name && i.actionTaken === "Yardıma katıldı");
+            if (userLogs.length > 0) {
+                const lastJoin = userLogs[userLogs.length - 1];
+                const startTime = new Date(lastJoin.timestamp).getTime();
+                const endTime = new Date().getTime();
+                durationMin = Math.max(1, Math.round((endTime - startTime) / 60000));
+            }
         }
-    }
 
-    const leaveLog = {
-        operator: loggedInOperator.name,
-        helpers: [],
-        durationMin: durationMin,
-        actionTaken: "Yardımdan ayrıldı",
-        status: "Yardımcı",
-        timestamp: new Date().toISOString()
-    };
+        const leaveLog = {
+            operator: loggedInOperator.name,
+            helpers: [],
+            durationMin: durationMin,
+            actionTaken: "Yardımdan ayrıldı",
+            status: "Yardımcı",
+            timestamp: new Date().toISOString()
+        };
 
-    db.collection('arizalar').doc(faultId).update({
-        helpers: firebase.firestore.FieldValue.arrayRemove(loggedInOperator.name),
-        interventions: firebase.firestore.FieldValue.arrayUnion(leaveLog)
-    }).then(() => {
-        alert("👋 Arızadan başarıyla ayrıldınız. Emeğinize sağlık!");
-        closeFaultSelectionModal();
-    }).catch(err => {
-        alert("Hata oluştu: " + err.message);
-        btn.innerText = oldText;
-        btn.disabled = false;
+        db.collection('arizalar').doc(faultId).update({
+            helpers: firebase.firestore.FieldValue.arrayRemove(loggedInOperator.name),
+            interventions: firebase.firestore.FieldValue.arrayUnion(leaveLog)
+        }).then(() => {
+            alert("👋 Arızadan başarıyla ayrıldınız. Emeğinize sağlık!");
+            closeFaultSelectionModal();
+        }).catch(err => {
+            alert("Hata oluştu: " + err.message);
+        });
     });
 }
 
@@ -1172,9 +1249,6 @@ function saveIntervention() {
     faultRef.update(updateData).then(() => {
         alert(`✅ Arıza müdahalesi başarıyla sisteme kaydedildi! \n\nYeni Durum: ${selectedStatus}`);
         closeFaultModal();
-        if (selectedStatus === 'Kapalı') {
-            fetchClosedToday();
-        }
     }).catch(error => {
         alert("Hata oluştu: " + error.message);
     }).finally(() => {
@@ -1382,8 +1456,13 @@ async function triggerSilentDailyExport() {
                 startEndHours = bitSaat;
             }
 
+            let basTarihVeSaat = basTarih;
+            if (basSaat) {
+                basTarihVeSaat = basTarih + " " + basSaat;
+            }
+
             exportData.push([
-                basTarih, data.userName || "", data.costCenter || "", data.machine || "", data.shift || "",
+                basTarihVeSaat, data.userName || "", data.costCenter || "", data.machine || "", data.shift || "",
                 data.jobType || "", data.description || "", data.photoUrl ? "Var" : "Yok", bakimLogu, bitTarih, startEndHours,
                 totalStoppageMin + " dk", data.stoppageReason || "", data.faultReason || "", data.actionTaken || "", data.partsChanged || ""
             ]);

@@ -454,8 +454,13 @@ async function exportAndCleanClosedFaults() {
                 startEndHours = bitSaat;
             }
 
+            let basTarihVeSaat = basTarih;
+            if (basSaat) {
+                basTarihVeSaat = basTarih + " " + basSaat;
+            }
+
             exportData.push([
-                basTarih,                      // A (Sadece Tarih)
+                basTarihVeSaat,                // A (Tarih ve Saat)
                 data.userName || "",           // B
                 data.costCenter || "",         // C
                 data.machine || "",            // D
