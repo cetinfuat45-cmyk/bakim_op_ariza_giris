@@ -1296,8 +1296,11 @@ function saveIntervention() {
     updateData.interventions = firebase.firestore.FieldValue.arrayUnion(...allNewLogs);
 
     faultRef.update(updateData).then(() => {
-        alert(`✅ Arıza müdahalesi başarıyla sisteme kaydedildi! \n\nYeni Durum: ${selectedStatus}`);
+        alert(`✅ Arıza müdahalesi başarıyla sisteme kaydedildi! \nDurum: ${selectedStatus}`);
         closeFaultModal();
+        if (selectedStatus === 'Kapalı') {
+            updateDailyStatsHeader();
+        }
     }).catch(error => {
         alert("Hata oluştu: " + error.message);
     }).finally(() => {
@@ -1356,8 +1359,11 @@ function showDashboard() {
     // Arka planda eksik senkronizasyon var mı kontrol et (Yönetici yokken operatör tetikler)
     triggerSilentDailyExport();
     
-    document.getElementById('user-info').innerText = `👤 Hoş Geldin, ${shortName(loggedInOperator.name)}`;
+    document.getElementById('user-info').innerText = `${shortName(loggedInOperator.name)}`;
     document.getElementById('user-info').style.color = "var(--success)";
+    
+    // YENİ: Bugün bitirilen işleri hesapla ve üst menüye yaz
+    updateDailyStatsHeader();
     
     // Profil resmini göster
     const picEl = document.getElementById('op-profile-pic');
@@ -1404,6 +1410,11 @@ function logout() {
     
     document.getElementById('user-info').innerText = "Lütfen PIN Kodunuzu Girin";
     document.getElementById('user-info').style.color = "var(--text-muted)";
+    const statsEl = document.getElementById('user-daily-stats');
+    if (statsEl) {
+        statsEl.style.display = 'none';
+        statsEl.innerText = "";
+    }
     document.getElementById('op-profile-pic').style.display = 'none';
     
     const logoutBtn = document.getElementById('btn-logout-header');
@@ -1687,4 +1698,46 @@ function openClosedTodayModal() {
             loadingText.style.display = 'none';
             listContainer.innerHTML = '<p style="text-align: center; color: var(--danger);">Veriler çekilirken hata oluştu!</p>';
         });
+}
+
+// ----------------------------------------------------
+// ÜST MENÜ GÜNLÜK İSTATİSTİK GÜNCELLEME
+// ----------------------------------------------------
+function updateDailyStatsHeader() {
+    if (!loggedInOperator) return;
+    const statsEl = document.getElementById('user-daily-stats');
+    if (!statsEl) return;
+    
+    statsEl.style.display = 'block';
+    statsEl.innerText = "Hesaplanıyor...";
+    
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('tr-TR');
+    
+    db.collection('arizalar')
+      .where('status', '==', 'Kapalı')
+      .get()
+      .then(snapshot => {
+          let count = 0;
+          snapshot.forEach(doc => {
+              const data = doc.data();
+              if (data.completedBy === loggedInOperator.name && data.completedAt) {
+                  let compDateObj = null;
+                  if (typeof data.completedAt.toDate === 'function') {
+                      compDateObj = data.completedAt.toDate();
+                  } else {
+                      compDateObj = new Date(data.completedAt);
+                  }
+                  if (compDateObj && !isNaN(compDateObj.getTime())) {
+                      if (compDateObj.toLocaleDateString('tr-TR') === todayStr) {
+                          count++;
+                      }
+                  }
+              }
+          });
+          statsEl.innerText = `(Bugün ${count} iş yaptın)`;
+      }).catch(err => {
+          console.error("Stats hatası:", err);
+          statsEl.innerText = "";
+      });
 }

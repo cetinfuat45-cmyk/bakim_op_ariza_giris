@@ -123,18 +123,22 @@
     <!-- UYGULAMA İÇİ BİLDİRİM KUTUSU (TOAST) -->
     <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 10px;"></div>
 
-    <div class="header" style="display: flex; align-items: center; justify-content: center; position: relative;">
-        <div>
-            <p id="user-info" style="margin:0; color: var(--text-muted); font-size: 0.9rem;">Lütfen PIN Kodunuzu Girin</p>
+    <div class="header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; position: relative; min-height: 60px;">
+        <!-- SOL KISIM: Menü İkonu ve Kullanıcı Bilgisi -->
+        <div style="display: flex; align-items: center; gap: 15px; z-index: 1000;">
+            <button id="main-menu-btn" onclick="event.stopPropagation(); const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 5px; box-shadow: none;">
+                ☰
+            </button>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+                <p id="user-info" style="margin:0; color: var(--text-muted); font-size: 1.1rem; font-weight: bold;">Lütfen PIN Girin</p>
+                <p id="user-daily-stats" style="margin:0; color: #94a3b8; font-size: 0.9rem; display: none;"></p>
+            </div>
         </div>
-        <img id="op-profile-pic" src="" alt="Profil" style="display: none; width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); position: absolute; right: 15px;">
+
+        <!-- SAĞ KISIM: Profil Resmi -->
+        <img id="op-profile-pic" src="" alt="Profil" style="display: none; width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary);">
     </div>
 
-    <!-- SİSTEM MENÜSÜ İKONU (SOLDA, SADE GÖRÜNÜM, BÜYÜTÜLMÜŞ DOKUNMA ALANI) -->
-    <button id="main-menu-btn" onclick="event.stopPropagation(); const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="position: absolute; top: 20px; left: 20px; z-index: 1000; background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 10px; margin-top: -10px; margin-left: -10px; box-shadow: none;">
-        ☰
-    </button>
-    
     <!-- AŞAĞI AÇILIR SİSTEM MENÜSÜ -->
     <div id="settings-menu" style="display: none; position: absolute; top: 75px; left: 20px; background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 15px; width: 220px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); z-index: 10000; flex-direction: column; gap: 10px;">
         <button onclick="document.getElementById('settings-menu').style.display='none'; openClosedTodayModal();" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.95rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(34,197,94,0.2);">
