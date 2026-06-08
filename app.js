@@ -374,11 +374,10 @@ function registerFCMToken() {
                             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                         }).then(() => {
                             console.log("Token Firestore'a başarıyla kaydedildi!");
-                            // Ekranda token alındığını göster
-                            showCustomToast("SİSTEM HAZIR", "Bildirim altyapısı başarıyla kuruldu!", "success");
+                            alert("SİSTEM HAZIR: Bildirim altyapısı başarıyla kuruldu!");
                         }).catch(e => {
                             console.error("Firestore yazma hatası:", e);
-                            showCustomToast("Veritabanı Hatası", "Token kaydedilemedi.", "error");
+                            alert("Veritabanı Hatası: Token kaydedilemedi.");
                         });
                     } catch(e) {
                         console.error("Operator bilgisi okunamadı:", e);
@@ -389,13 +388,12 @@ function registerFCMToken() {
             }
         }).catch((err) => {
             console.log('FCM Token hatası: ', err);
-            // Hata detayını ekranda görmek için geçici toast mesajı
-            showCustomToast("FCM Hatası", err.toString(), "error");
+            alert("FCM Hatası: " + err.toString());
         });
         
         messaging.onMessage((payload) => {
             console.log('Ön planda mesaj geldi: ', payload);
-            showCustomToast(payload.notification.title || "YENİ ARIZA", payload.notification.body || "Sisteme yeni arıza girildi.", "error");
+            alert((payload.notification.title || "YENİ ARIZA") + "\n\n" + (payload.notification.body || "Sisteme yeni arıza girildi."));
         });
     } catch (e) {
         console.error("FCM başlatılamadı:", e);
