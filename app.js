@@ -856,12 +856,15 @@ function openFaultSelectionModal(faults) {
         let actionButtonsHtml = '';
         const currentStatus = fault.status || "Açık";
         
-        if (!fault.assignedTo) {
-            // Hiç kimse işe başlamamış veya arıza parça/dış servis beklemeye düşmüş
+        // Eğer arıza henüz başlamadıysa ("Açık") VEYA kimse atanmamışsa (Parça bekliyor vb. durumunda atanmış kişi silinir)
+        if (currentStatus === "Açık" || !fault.assignedTo) {
             let startBtnText = "🚀 Çalışmaya Başla";
             if (currentStatus === "Parça Bekliyor") startBtnText = "📦 Parça Geldi / İşi Devral";
             else if (currentStatus === "Dış Servis Bekliyor") startBtnText = "🚐 Dış Servis Geldi / İşe Başla";
             else if (currentStatus !== "Açık") startBtnText = "🚀 İşi Devral (" + currentStatus + ")";
+            else if (currentStatus === "Açık" && fault.assignedTo && fault.assignedTo !== loggedInOperator.name) {
+                startBtnText = `🚀 İşi Devral (Görevli: ${fault.assignedTo})`;
+            }
 
             actionButtonsHtml = `<button onclick='startWork("${fault.id}")' style="background: var(--primary); color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">${startBtnText}</button>`;
         } else {
