@@ -441,15 +441,35 @@ async function exportAndCleanClosedFaults() {
             }
 
             let endObj = data.completedAt ? new Date(data.completedAt) : null;
-            let totalStoppageMin = 0;
-            if (startObj && endObj && !isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
-                totalStoppageMin = Math.max(0, Math.round((endObj - startObj) / 60000));
+            
+            // Operatörün müdahaleye fiilen başladığı zaman (Yoksa arıza açılış saatini baz al)
+            let workStartObj = startObj;
+            if (data.startedAt) {
+                if (typeof data.startedAt.toDate === 'function') workStartObj = data.startedAt.toDate();
+                else if (data.startedAt.seconds) workStartObj = new Date(data.startedAt.seconds * 1000);
+                else workStartObj = new Date(data.startedAt);
+            }
+            
+            let workBasTarih = basTarih;
+            let workBasSaat = basSaat;
+            if (workStartObj && !isNaN(workStartObj.getTime())) {
+                workBasTarih = workStartObj.toLocaleDateString('tr-TR');
+                workBasSaat = workStartObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
             }
 
-            // K Sütunu için Start - Bitiş formatı
+            let totalStoppageMin = 0;
+            if (workStartObj && endObj && !isNaN(workStartObj.getTime()) && !isNaN(endObj.getTime())) {
+                totalStoppageMin = Math.max(0, Math.round((endObj - workStartObj) / 60000));
+            }
+
+            // K Sütunu için Start - Bitiş formatı (Operatörün çalışmaya başladığı saati baz al)
             let startEndHours = "";
-            if (basSaat && bitSaat) {
-                startEndHours = `${basSaat} - ${bitSaat}`;
+            if (workBasSaat && bitSaat) {
+                if (workBasTarih !== bitTarih) {
+                    startEndHours = `${workBasTarih} ${workBasSaat} - ${bitTarih} ${bitSaat}`;
+                } else {
+                    startEndHours = `${workBasSaat} - ${bitSaat}`;
+                }
             } else if (bitSaat) {
                 startEndHours = bitSaat;
             }
@@ -457,6 +477,14 @@ async function exportAndCleanClosedFaults() {
             let basTarihVeSaat = basTarih;
             if (basSaat) {
                 basTarihVeSaat = basTarih + " " + basSaat;
+            }
+            
+            // L Sütunu Duruş Süresi Formatı (Örn: 45 saat 37 dk)
+            let formattedStoppage = totalStoppageMin + " dk";
+            if (totalStoppageMin > 60) {
+                let h = Math.floor(totalStoppageMin / 60);
+                let m = totalStoppageMin % 60;
+                formattedStoppage = `${h} saat ${m} dk`;
             }
 
             exportData.push([
@@ -471,7 +499,7 @@ async function exportAndCleanClosedFaults() {
                 bakimLogu,                     // I
                 bitTarih,                      // J
                 startEndHours,                 // K (Start - Bitiş Saatleri)
-                totalStoppageMin + " dk",      // L (Makine Toplam Duruşu)
+                formattedStoppage,             // L (Makine Toplam Duruşu)
                 data.stoppageReason || "",     // M
                 data.faultReason || "",        // N (Yer Değiştirdi: Arıza Nedeni -> YAPILAN BAKIM sütunu)
                 data.actionTaken || "",        // O (Yer Değiştirdi: Açıklama -> AÇIKLAMA sütunu)

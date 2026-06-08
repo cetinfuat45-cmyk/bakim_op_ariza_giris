@@ -14,6 +14,13 @@ if (!firebase.apps.length) {
 }
 const db = firebase.firestore();
 
+// Mobil cihazlarda ekran kapanıp açıldığında kopan Firebase bağlantısını zorla tazele (Ağ uykusunu çözmek için)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        db.disableNetwork().then(() => db.enableNetwork()).catch(err => console.log("Ağ tazeleme hatası:", err));
+    }
+});
+
 // SİSTEMDEKİ TÜM ALERT'LERİ ŞIK BİR HALE GETİRMEK İÇİN (SweetAlert2 OVERRIDE)
 window.alert = function(message) {
     const isError = message.toLowerCase().includes('hata') || message.toLowerCase().includes('lütfen') || message.includes('⚠️') || message.includes('❌');
@@ -1444,14 +1451,35 @@ async function triggerSilentDailyExport() {
             }
 
             let endObj = data.completedAt ? new Date(data.completedAt) : null;
-            let totalStoppageMin = 0;
-            if (startObj && endObj && !isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
-                totalStoppageMin = Math.max(0, Math.round((endObj - startObj) / 60000));
+            
+            // Operatörün müdahaleye fiilen başladığı zaman (Yoksa arıza açılış saatini baz al)
+            let workStartObj = startObj;
+            if (data.startedAt) {
+                if (typeof data.startedAt.toDate === 'function') workStartObj = data.startedAt.toDate();
+                else if (data.startedAt.seconds) workStartObj = new Date(data.startedAt.seconds * 1000);
+                else workStartObj = new Date(data.startedAt);
+            }
+            
+            let workBasTarih = basTarih;
+            let workBasSaat = basSaat;
+            if (workStartObj && !isNaN(workStartObj.getTime())) {
+                workBasTarih = workStartObj.toLocaleDateString('tr-TR');
+                workBasSaat = workStartObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
             }
 
+            let totalStoppageMin = 0;
+            if (workStartObj && endObj && !isNaN(workStartObj.getTime()) && !isNaN(endObj.getTime())) {
+                totalStoppageMin = Math.max(0, Math.round((endObj - workStartObj) / 60000));
+            }
+
+            // K Sütunu için Start - Bitiş formatı (Operatörün çalışmaya başladığı saati baz al)
             let startEndHours = "";
-            if (basSaat && bitSaat) {
-                startEndHours = `${basSaat} - ${bitSaat}`;
+            if (workBasSaat && bitSaat) {
+                if (workBasTarih !== bitTarih) {
+                    startEndHours = `${workBasTarih} ${workBasSaat} - ${bitTarih} ${bitSaat}`;
+                } else {
+                    startEndHours = `${workBasSaat} - ${bitSaat}`;
+                }
             } else if (bitSaat) {
                 startEndHours = bitSaat;
             }
@@ -1460,11 +1488,19 @@ async function triggerSilentDailyExport() {
             if (basSaat) {
                 basTarihVeSaat = basTarih + " " + basSaat;
             }
+            
+            // L Sütunu Duruş Süresi Formatı (Örn: 45 saat 37 dk)
+            let formattedStoppage = totalStoppageMin + " dk";
+            if (totalStoppageMin > 60) {
+                let h = Math.floor(totalStoppageMin / 60);
+                let m = totalStoppageMin % 60;
+                formattedStoppage = `${h} saat ${m} dk`;
+            }
 
             exportData.push([
                 basTarihVeSaat, data.userName || "", data.costCenter || "", data.machine || "", data.shift || "",
                 data.jobType || "", data.description || "", data.photoUrl ? "Var" : "Yok", bakimLogu, bitTarih, startEndHours,
-                totalStoppageMin + " dk", data.stoppageReason || "", data.faultReason || "", data.actionTaken || "", data.partsChanged || ""
+                formattedStoppage, data.stoppageReason || "", data.faultReason || "", data.actionTaken || "", data.partsChanged || ""
             ]);
         });
 
