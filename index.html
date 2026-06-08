@@ -144,6 +144,9 @@
         <button onclick="document.getElementById('settings-menu').style.display='none'; openClosedTodayModal();" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.95rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(34,197,94,0.2);">
             ✅ Bugün Kapatılanlar
         </button>
+        <button onclick="document.getElementById('settings-menu').style.display='none'; openThemeModal();" style="width: 100%; padding: 12px; background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 8px; font-weight: bold; font-size: 0.95rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+            🎨 Tema ve Görünüm
+        </button>
         <button id="btn-toggle-notifications" onclick="toggleNotifications();" style="width: 100%; padding: 12px; background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; font-weight: bold; font-size: 0.95rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px;">
             🔔 Bildirimler: AÇIK
         </button>
@@ -322,6 +325,35 @@
             </div>
             
             <button onclick="document.getElementById('closed-today-modal').style.display='none'" class="btn-cancel" style="width: 100%; margin-top: 1rem;">Kapat</button>
+        </div>
+    </div>
+
+    <!-- TEMA VE GÖRÜNÜM MODALI -->
+    <div id="theme-modal" class="modal" onclick="if(event.target===this) closeThemeModal()">
+        <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
+            <h2 class="modal-title">🎨 Tema ve Görünüm</h2>
+            
+            <div class="form-group">
+                <label style="color: white; font-weight: bold; font-size: 1rem; margin-bottom: 10px;">Arka Plan Rengi</label>
+                <div id="color-swatches" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px;">
+                    <!-- Renkler JavaScript ile buraya eklenecek -->
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="color: white; font-weight: bold; font-size: 1rem; margin-bottom: 10px;">Yazı Boyutu (0 - 100)</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.8rem;">A</span>
+                    <input type="range" id="font-size-slider" min="0" max="100" value="50" style="flex: 1; accent-color: var(--primary);" oninput="previewFontSize(this.value)">
+                    <span style="font-size: 1.5rem;">A</span>
+                </div>
+                <p id="font-size-preview" style="text-align: center; margin-top: 10px; color: var(--text-muted);">Örnek Yazı Boyutu</p>
+            </div>
+
+            <div class="modal-buttons" style="margin-top: 2rem;">
+                <button class="btn-cancel" onclick="closeThemeModal()">İptal</button>
+                <button class="btn-submit" onclick="saveThemePrefs()">Kaydet ve Uygula</button>
+            </div>
         </div>
     </div>
 

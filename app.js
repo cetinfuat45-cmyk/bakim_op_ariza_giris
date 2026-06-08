@@ -1320,6 +1320,9 @@ function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
     
+    // Tema ayarlarını uygula
+    applyThemePrefs();
+    
     // Header'da Operatör ismini göster
     if (loggedInOperator && loggedInOperator.name) {
         document.getElementById('user-info').innerHTML = `👤 Operatör: <strong>${loggedInOperator.name}</strong>`;
@@ -1413,6 +1416,9 @@ function logout() {
     localStorage.removeItem("loggedInOperator");
     loggedInOperator = null;
     document.getElementById('pinCode').value = '';
+    
+    // Temayı varsayılana sıfırla
+    resetThemePrefs();
     
     document.getElementById('user-info').innerText = "Lütfen PIN Kodunuzu Girin";
     document.getElementById('user-info').style.color = "var(--text-muted)";
@@ -1773,4 +1779,128 @@ function updateDailyStatsHeader() {
           console.error("Stats hatası:", err);
           statsEl.innerText = "";
       });
+}
+
+// ----------------------------------------------------
+// TEMA VE GÖRÜNÜM AYARLARI
+// ----------------------------------------------------
+const themeColors = [
+    { name: "Orijinal", hex: "#0f172a" },
+    { name: "Kırmızı", hex: "#FF0000" }, { name: "Açık Mavi", hex: "#00FFFF" }, { name: "Mavi", hex: "#0000FF" },
+    { name: "Koyu Mavi", hex: "#00008B" }, { name: "Bebek Mavisi", hex: "#ADD8E6" }, { name: "Mor", hex: "#800080" },
+    { name: "Sarı", hex: "#FFFF00" }, { name: "Fosforlu Yeşil", hex: "#00FF00" }, { name: "Açık Pembe", hex: "#FF00FF" },
+    { name: "Pembe", hex: "#FFC0CB" }, { name: "Beyaz", hex: "#FFFFFF" }, { name: "Gümüş", hex: "#C0C0C0" },
+    { name: "Gri", hex: "#808080" }, { name: "Siyah", hex: "#000000" }, { name: "Turuncu", hex: "#FFA500" },
+    { name: "Kahverengi", hex: "#A52A2A" }, { name: "Bordo", hex: "#800000" }, { name: "Yeşil", hex: "#008000" },
+    { name: "Zeytin", hex: "#808000" }, { name: "Turkuaz", hex: "#7FFFD4" }
+];
+
+let selectedThemeColor = null;
+
+function openThemeModal() {
+    const swatches = document.getElementById('color-swatches');
+    swatches.innerHTML = '';
+    
+    const prefs = getThemePrefs();
+    selectedThemeColor = prefs.color;
+    document.getElementById('font-size-slider').value = prefs.fontSize;
+    previewFontSize(prefs.fontSize);
+
+    themeColors.forEach(c => {
+        const btn = document.createElement('button');
+        btn.style.backgroundColor = c.hex;
+        btn.style.width = '100%';
+        btn.style.aspectRatio = '1/1';
+        btn.style.borderRadius = '8px';
+        btn.style.border = (selectedThemeColor === c.hex) ? '3px solid white' : '1px solid rgba(255,255,255,0.2)';
+        btn.style.cursor = 'pointer';
+        btn.title = c.name;
+        btn.onclick = () => {
+            selectedThemeColor = c.hex;
+            Array.from(swatches.children).forEach(child => child.style.border = '1px solid rgba(255,255,255,0.2)');
+            btn.style.border = '3px solid white';
+        };
+        swatches.appendChild(btn);
+    });
+
+    document.getElementById('theme-modal').style.display = 'flex';
+}
+
+function closeThemeModal() {
+    document.getElementById('theme-modal').style.display = 'none';
+}
+
+function previewFontSize(val) {
+    const preview = document.getElementById('font-size-preview');
+    const rem = 0.7 + (val / 100) * 0.8;
+    preview.style.fontSize = rem + 'rem';
+    preview.innerText = `Örnek Yazı Boyutu (${val})`;
+}
+
+function getThemePrefs() {
+    if (!loggedInOperator) return { color: '#0f172a', fontSize: 50 };
+    const stored = localStorage.getItem(`themePrefs_${loggedInOperator.pin}`);
+    if (stored) return JSON.parse(stored);
+    return { color: '#0f172a', fontSize: 50 };
+}
+
+function saveThemePrefs() {
+    if (!loggedInOperator) return;
+    const fontSizeVal = document.getElementById('font-size-slider').value;
+    const prefs = {
+        color: selectedThemeColor || '#0f172a',
+        fontSize: parseInt(fontSizeVal)
+    };
+    localStorage.setItem(`themePrefs_${loggedInOperator.pin}`, JSON.stringify(prefs));
+    applyThemePrefs();
+    closeThemeModal();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Tema Uygulandı!',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500
+    });
+}
+
+function getContrastYIQ(hexcolor){
+    hexcolor = hexcolor.replace("#", "");
+    var r = parseInt(hexcolor.substr(0,2),16);
+    var g = parseInt(hexcolor.substr(2,2),16);
+    var b = parseInt(hexcolor.substr(4,2),16);
+    var yiq = ((r*299)+(g*587)+(b*114))/1000;
+    return (yiq >= 128) ? 'black' : 'white';
+}
+
+function applyThemePrefs() {
+    if (!loggedInOperator) return;
+    const prefs = getThemePrefs();
+    
+    document.documentElement.style.setProperty('--bg-color', prefs.color);
+    const textColor = getContrastYIQ(prefs.color);
+    document.documentElement.style.setProperty('--text-main', textColor);
+    
+    if (textColor === 'black') {
+        document.documentElement.style.setProperty('--surface-color', 'rgba(255, 255, 255, 0.4)');
+        document.documentElement.style.setProperty('--text-muted', '#333333');
+        document.documentElement.style.setProperty('--border-color', 'rgba(0,0,0,0.2)');
+    } else {
+        document.documentElement.style.setProperty('--surface-color', 'rgba(0, 0, 0, 0.4)');
+        document.documentElement.style.setProperty('--text-muted', '#94a3b8');
+        document.documentElement.style.setProperty('--border-color', 'rgba(255,255,255,0.1)');
+    }
+
+    const rem = 0.7 + (prefs.fontSize / 100) * 0.8;
+    document.documentElement.style.fontSize = (16 * rem) + 'px';
+}
+
+function resetThemePrefs() {
+    document.documentElement.style.setProperty('--bg-color', '#0f172a');
+    document.documentElement.style.setProperty('--surface-color', '#1e293b');
+    document.documentElement.style.setProperty('--text-main', '#f8fafc');
+    document.documentElement.style.setProperty('--text-muted', '#94a3b8');
+    document.documentElement.style.setProperty('--border-color', '#475569');
+    document.documentElement.style.fontSize = '16px';
 }
