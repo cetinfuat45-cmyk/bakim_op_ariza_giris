@@ -573,10 +573,15 @@ function fetchOpenFaults() {
                     statusLabelHtml = `<div class="fault-status" style="color:#000; background: ${cardBg !== 'var(--surface-color)' ? cardBg : '#f59e0b'}; padding:4px 8px; border-radius:4px; display:inline-block; font-weight:bold;">⏳ ${cStatus.toLocaleUpperCase('tr-TR')}</div>`;
                 }
 
-                // Yardımcılar HTML'si
+                // Yardımcılar ve Görevli HTML'si
                 let helpersHtml = '';
                 if (fault.helpers && fault.helpers.length > 0) {
                     helpersHtml = `<p class="fault-details" style="color:${textColor}; margin-top: 4px;"><strong>🤝 Yardımcılar:</strong> ${fault.helpers.join(', ')}</p>`;
+                }
+                
+                let assignedHtml = '';
+                if (fault.assignedTo) {
+                    assignedHtml = `<p class="fault-details" style="color:var(--warning); font-weight:bold; margin-top: 4px;">🛠️ Görevli: ${fault.assignedTo}</p>`;
                 }
 
                 // Ortak Kart HTML'si
@@ -588,6 +593,7 @@ function fetchOpenFaults() {
                     <p class="fault-details" style="color:${textColor};"><strong>Vardiya:</strong> ${fault.shift || "-"}</p>
                     <p class="fault-details" style="color:${textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${fault.jobType || "-"}</span></p>
                     <p class="fault-details" style="color:${textColor};"><strong>Açıklama:</strong> ${fault.description || "Açıklama yok"}</p>
+                    ${assignedHtml}
                     ${helpersHtml}
                     ${statusLabelHtml}
                 `;
