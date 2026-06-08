@@ -328,77 +328,7 @@ function handleFaultClick(fault) {
 let faultsUnsubscribe = null;
 let isInitialFaultsLoad = true;
 
-// BİLDİRİM FONKSİYONLARI
-function requestNotificationPermission() {
-    // Menüdeki butonun ilk durumunu ayarla
-    updateNotificationBtnUI();
-    
-    if ("Notification" in window) {
-        Notification.requestPermission().then(permission => {
-            console.log("Bildirim izni durumu:", permission);
-            if (permission === "granted") {
-                registerFCMToken();
-            }
-        });
-    }
-}
-
-function registerFCMToken() {
-    try {
-        if (!firebase.messaging.isSupported()) {
-            console.log('Bu tarayıcı FCM desteklemiyor.');
-            return;
-        }
-        const messaging = firebase.messaging();
-        
-        // GitHub Pages alt klasöründe barındırıldığı için Service Worker'ı manuel kaydediyoruz
-        navigator.serviceWorker.register('./firebase-messaging-sw.js')
-        .then((registration) => {
-            console.log("Service Worker başarıyla kaydedildi: ", registration);
-            return messaging.getToken({ 
-                vapidKey: "BCkId1lYgx-z_TJzrDTEI7vNYWD1ugiuuaKC3l5oehRXFOqJfTPDdqbz5sZ8nBsysSEOM9RtlePCVvIgzZ8kZys",
-                serviceWorkerRegistration: registration
-            });
-        })
-        .then((currentToken) => {
-            if (currentToken) {
-                console.log("FCM Token Alındı:", currentToken);
-                const operatorData = localStorage.getItem("loggedInOperator");
-                if (operatorData) {
-                    try {
-                        const operatorObj = JSON.parse(operatorData);
-                        const operatorName = operatorObj.name || "Bilinmeyen Operator";
-                        
-                        db.collection('fcm_tokens').doc(operatorName).set({
-                            token: currentToken,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }).then(() => {
-                            console.log("Token Firestore'a başarıyla kaydedildi!");
-                            alert("SİSTEM HAZIR: Bildirim altyapısı başarıyla kuruldu!");
-                        }).catch(e => {
-                            console.error("Firestore yazma hatası:", e);
-                            alert("Veritabanı Hatası: Token kaydedilemedi.");
-                        });
-                    } catch(e) {
-                        console.error("Operator bilgisi okunamadı:", e);
-                    }
-                }
-            } else {
-                console.log('FCM Token alınamadı.');
-            }
-        }).catch((err) => {
-            console.log('FCM Token hatası: ', err);
-            alert("FCM Hatası: " + err.toString());
-        });
-        
-        messaging.onMessage((payload) => {
-            console.log('Ön planda mesaj geldi: ', payload);
-            alert((payload.notification.title || "YENİ ARIZA") + "\n\n" + (payload.notification.body || "Sisteme yeni arıza girildi."));
-        });
-    } catch (e) {
-        console.error("FCM başlatılamadı:", e);
-    }
-}
+// BİLDİRİM FONKSİYONLARI İPTAL EDİLDİ
 
 function updateNotificationBtnUI() {
     const btn = document.getElementById('btn-toggle-notifications');
@@ -425,7 +355,6 @@ function toggleNotifications() {
     } else {
         localStorage.setItem('notificationsEnabled', 'true');
         alert("Bildirimler AÇILDI. Yeni arızalarda sesli ve görsel uyarı alacaksınız.");
-        requestNotificationPermission(); // Açıldığı an izin yoksa tekrar ister
     }
     updateNotificationBtnUI();
     // Menüyü otomatik kapatma
