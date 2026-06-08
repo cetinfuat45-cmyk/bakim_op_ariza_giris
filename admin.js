@@ -1,6 +1,6 @@
 // FIREBASE BAĞLANTISI
 const firebaseConfig = {
-    apiKey: "AIzaSyAEqLYUevIJCcLrJa-05MXx5ik-QFouq9o",
+    apiKey: "AIzaSyAEqlYUevIJCcLrJa-05MXx5ik-QFouq9o",
     authDomain: "arizabildirim-89dfa.firebaseapp.com",
     projectId: "arizabildirim-89dfa",
     storageBucket: "arizabildirim-89dfa.firebasestorage.app",

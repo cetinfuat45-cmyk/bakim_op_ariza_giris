@@ -4,7 +4,7 @@ importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js')
 
 // Kendi Firebase Config bilgilerinizi buraya girin (app.js ile aynı)
 firebase.initializeApp({
-    apiKey: "AIzaSyAEqLYUevIJCcLrJa-05MXx5ik-QFouq9o",
+    apiKey: "AIzaSyAEqlYUevIJCcLrJa-05MXx5ik-QFouq9o",
     authDomain: "arizabildirim-89dfa.firebaseapp.com",
     projectId: "arizabildirim-89dfa",
     storageBucket: "arizabildirim-89dfa.firebasestorage.app",
