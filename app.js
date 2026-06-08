@@ -336,7 +336,44 @@ function requestNotificationPermission() {
     if ("Notification" in window) {
         Notification.requestPermission().then(permission => {
             console.log("Bildirim izni durumu:", permission);
+            if (permission === "granted") {
+                registerFCMToken();
+            }
         });
+    }
+}
+
+function registerFCMToken() {
+    try {
+        if (!firebase.messaging.isSupported()) {
+            console.log('Bu tarayıcı FCM desteklemiyor.');
+            return;
+        }
+        const messaging = firebase.messaging();
+        messaging.getToken({ vapidKey: "BDVxJHIAOVJRpKUROchlsBl7L_9Yv_irAhpLDFMU_wqb12GjxAO23Fo1cmUzi9tqjxZRS4VOckA218cxP3qSs2Y" }).then((currentToken) => {
+            if (currentToken) {
+                console.log("FCM Token Alındı:", currentToken);
+                const operatorName = localStorage.getItem("loggedInOperator");
+                if (operatorName) {
+                    db.collection('fcm_tokens').doc(operatorName).set({
+                        token: currentToken,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            } else {
+                console.log('FCM Token alınamadı.');
+            }
+        }).catch((err) => {
+            console.log('FCM Token hatası: ', err);
+        });
+        
+        messaging.onMessage((payload) => {
+            console.log('Ön planda mesaj geldi: ', payload);
+            // Uygulama açıkken (ön plandayken) de Toast gösterebiliriz
+            showCustomToast(payload.notification.title || "YENİ ARIZA", payload.notification.body || "Sisteme yeni arıza girildi.", "error");
+        });
+    } catch (e) {
+        console.error("FCM başlatılamadı:", e);
     }
 }
 
