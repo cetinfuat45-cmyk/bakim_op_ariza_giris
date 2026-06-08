@@ -1,6 +1,6 @@
 // FIREBASE BAĞLANTISI (Sizin orijinal projenizden kopyalandı)
 const firebaseConfig = {
-    apiKey: "AIzaSyAEqlYUevIJCcLrJa-05MXx5ik-QFouq9o",
+    apiKey: "AIzaSyAEqLYUevIJCcLrJa-05MXx5ik-QFouq9o",
     authDomain: "arizabildirim-89dfa.firebaseapp.com",
     projectId: "arizabildirim-89dfa",
     storageBucket: "arizabildirim-89dfa.firebasestorage.app",
@@ -1258,8 +1258,21 @@ function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
     
-    // Bildirim izni iste
-    requestNotificationPermission();
+    // Header'da Operatör ismini göster
+    if (loggedInOperator && loggedInOperator.name) {
+        document.getElementById('user-info').innerHTML = `👤 Operatör: <strong>${loggedInOperator.name}</strong>`;
+        
+        // Varsa operatörün fotoğrafını da göster
+        const profilePic = document.getElementById('op-profile-pic');
+        if (profilePic) {
+            if (loggedInOperator.photoUrl) {
+                profilePic.src = loggedInOperator.photoUrl;
+                profilePic.style.display = 'block';
+            } else {
+                profilePic.style.display = 'none';
+            }
+        }
+    }
 
     // Açık arızaları getirmeyi (dinlemeyi) başlat
     fetchOpenFaults();
