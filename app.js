@@ -363,12 +363,26 @@ function registerFCMToken() {
         .then((currentToken) => {
             if (currentToken) {
                 console.log("FCM Token Alındı:", currentToken);
-                const operatorName = localStorage.getItem("loggedInOperator");
-                if (operatorName) {
-                    db.collection('fcm_tokens').doc(operatorName).set({
-                        token: currentToken,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                const operatorData = localStorage.getItem("loggedInOperator");
+                if (operatorData) {
+                    try {
+                        const operatorObj = JSON.parse(operatorData);
+                        const operatorName = operatorObj.name || "Bilinmeyen Operator";
+                        
+                        db.collection('fcm_tokens').doc(operatorName).set({
+                            token: currentToken,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }).then(() => {
+                            console.log("Token Firestore'a başarıyla kaydedildi!");
+                            // Ekranda token alındığını göster
+                            showCustomToast("SİSTEM HAZIR", "Bildirim altyapısı başarıyla kuruldu!", "success");
+                        }).catch(e => {
+                            console.error("Firestore yazma hatası:", e);
+                            showCustomToast("Veritabanı Hatası", "Token kaydedilemedi.", "error");
+                        });
+                    } catch(e) {
+                        console.error("Operator bilgisi okunamadı:", e);
+                    }
                 }
             } else {
                 console.log('FCM Token alınamadı.');
