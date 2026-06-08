@@ -1708,8 +1708,18 @@ function updateDailyStatsHeader() {
     const statsEl = document.getElementById('user-daily-stats');
     if (!statsEl) return;
     
-    statsEl.style.display = 'block';
+    statsEl.style.display = 'inline-block';
+    statsEl.style.color = '#7FFFD4';
     statsEl.innerText = "Hesaplanıyor...";
+    
+    // Tarayıcı önbelleğini kırmak için HTML yapısını JavaScript ile zorluyoruz
+    const parent = statsEl.parentElement;
+    if (parent) {
+        parent.style.display = 'flex';
+        parent.style.flexDirection = 'row';
+        parent.style.alignItems = 'baseline';
+        parent.style.gap = '8px';
+    }
     
     const today = new Date();
     const todayStr = today.toLocaleDateString('tr-TR');
@@ -1719,6 +1729,7 @@ function updateDailyStatsHeader() {
       .get()
       .then(snapshot => {
           let count = 0;
+          let totalMinutes = 0;
           snapshot.forEach(doc => {
               const data = doc.data();
               if (data.completedBy === loggedInOperator.name && data.completedAt) {
@@ -1731,11 +1742,27 @@ function updateDailyStatsHeader() {
                   if (compDateObj && !isNaN(compDateObj.getTime())) {
                       if (compDateObj.toLocaleDateString('tr-TR') === todayStr) {
                           count++;
+                          if (data.interventions) {
+                              data.interventions.forEach(log => {
+                                  if (log.operator === loggedInOperator.name && log.durationMin) {
+                                      totalMinutes += parseInt(log.durationMin) || 0;
+                                  }
+                              });
+                          }
                       }
                   }
               }
           });
-          statsEl.innerText = `(Bugün ${count} iş yaptın)`;
+          
+          let timeText = "";
+          if (totalMinutes > 0) {
+              const hours = Math.floor(totalMinutes / 60);
+              const mins = totalMinutes % 60;
+              if (hours > 0) timeText = ` - ${hours}s ${mins}d`;
+              else timeText = ` - ${mins}d`;
+          }
+          
+          statsEl.innerText = `(Bugün ${count} iş${timeText})`;
       }).catch(err => {
           console.error("Stats hatası:", err);
           statsEl.innerText = "";
