@@ -356,7 +356,7 @@ function registerFCMToken() {
         .then((registration) => {
             console.log("Service Worker başarıyla kaydedildi: ", registration);
             return messaging.getToken({ 
-                vapidKey: "BDVxJHIAOVJRpKUROchlsBl7L_9Yv_irAhpLDFMU_wqb12GjxAO23Fo1cmUzi9tqjxZRS4VOckA218cxP3qSs2Y",
+                vapidKey: "BCkId1lYgx-z_TJzrDTEI7vNYWD1ugiuuaKC3l5oehRXFOqJfTPDdqbz5sZ8nBsysSEOM9RtlePCVvIgzZ8kZys",
                 serviceWorkerRegistration: registration
             });
         })
