@@ -442,7 +442,7 @@ function fetchOpenFaults() {
     
     if (myTasksTitle && loggedInOperator) {
         const opName = loggedInOperator.name.toLocaleUpperCase('tr-TR');
-        myTasksTitle.innerHTML = `⭐ ${opName}, BU GÖREVLERİ TAMAMLAMAN GEREKİYOR!`;
+        myTasksTitle.innerHTML = `⚠️ ${opName}, BU GÖREVLER SENİ BEKLİYOR!`;
     }
 
     todayContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Açık arızalar aranıyor...</p>';
@@ -602,27 +602,6 @@ function fetchOpenFaults() {
                     card.onclick = () => handleFaultClick(fault);
                     card.innerHTML = cardHtml;
                     todayContainer.appendChild(card);
-                }
-                else if (isMyTask) { // Sadece bugünden öncekiler buraya düşer
-                    myTaskCount++;
-                    myTasksSection.style.display = 'block';
-                    
-                    const shortDateTime = dateObj ? dateObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : "-";
-
-                    const tr = document.createElement('tr');
-                    tr.style.backgroundColor = cardBg;
-                    tr.style.color = textColor;
-                    tr.style.borderLeft = `4px solid ${isSolid ? textColor : borderColor}`;
-                    
-                    tr.onclick = () => handleFaultClick(fault);
-                    tr.innerHTML = `
-                        <td data-label="Tarih" style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
-                        <td data-label="Vardiya" class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
-                        <td data-label="Makine" class="truncate-text" style="color: ${textColor};"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
-                        <td data-label="Tür" class="truncate-text" style="color: ${textColor}; font-weight: bold;">${fault.jobType || "-"}</td>
-                        <td data-label="Açıklama" class="truncate-text" style="color: ${textColor};">${fault.description || "-"}</td>
-                    `;
-                    myTasksTbody.appendChild(tr);
                 } else {
                     olderCount++;
                     // Eski arızaları ÖNCE TARİHE SONRA TÜRÜNE göre grupla
@@ -634,6 +613,29 @@ function fetchOpenFaults() {
                     if (!dateGroups[dateKey][typeKey]) dateGroups[dateKey][typeKey] = [];
                     
                     dateGroups[dateKey][typeKey].push(fault);
+
+                    // EĞER ATANAN KİŞİ BEN İSEM, AYNI ZAMANDA "BENİ BEKLEYENLER" TABLOSUNDA DA GÖSTER
+                    if (isMyTask) {
+                        myTaskCount++;
+                        myTasksSection.style.display = 'block';
+                        
+                        const shortDateTime = dateObj ? dateObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : "-";
+
+                        const tr = document.createElement('tr');
+                        tr.style.backgroundColor = cardBg;
+                        tr.style.color = textColor;
+                        tr.style.borderLeft = `4px solid ${isSolid ? textColor : borderColor}`;
+                        
+                        tr.onclick = () => handleFaultClick(fault);
+                        tr.innerHTML = `
+                            <td data-label="Tarih" style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
+                            <td data-label="Vardiya" class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
+                            <td data-label="Makine" class="truncate-text" style="color: ${textColor};"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
+                            <td data-label="Tür" class="truncate-text" style="color: ${textColor}; font-weight: bold;">${fault.jobType || "-"}</td>
+                            <td data-label="Açıklama" class="truncate-text" style="color: ${textColor};">${fault.description || "-"}</td>
+                        `;
+                        myTasksTbody.appendChild(tr);
+                    }
                 }
             });
 
@@ -794,6 +796,15 @@ function onScanSuccess(decodedText) {
 
 // --- BİRDEN FAZLA ARIZA SEÇİM MODALI ---
 function openFaultSelectionModal(faults) {
+    let isAdmin = false;
+    if (loggedInOperator) {
+        const opName = (loggedInOperator.name || loggedInOperator.isim || loggedInOperator.ad || "").toString().toLocaleLowerCase('tr-TR');
+        const opPin = (loggedInOperator.pin || "").toString().trim();
+        if (opName.includes('admin') || opName.includes('akif') || opName.includes('şef') || opName.includes('sef') || opName.includes('fuat') || opPin === '9999' || opPin === '0000') {
+            isAdmin = true;
+        }
+    }
+
     const modal = document.getElementById('fault-selection-modal');
     const container = document.getElementById('multiple-faults-container');
     const machineNameEl = document.getElementById('fault-selection-machine-name');
@@ -871,6 +882,22 @@ function openFaultSelectionModal(faults) {
                 }
             }
         }
+        let adminAssignHtml = '';
+        if (isAdmin) {
+            let options = `<option value="">-- Görevliyi Kaldır --</option>`;
+            operatorsList.forEach(op => {
+                const opNameStr = op.name || op.isim || op.ad;
+                const isSelected = fault.assignedTo === opNameStr ? 'selected' : '';
+                options += `<option value="${opNameStr}" ${isSelected}>${opNameStr}</option>`;
+            });
+            adminAssignHtml = `
+            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <label style="color: var(--warning); font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 4px;">👑 Admin: Görevli Ata / Değiştir</label>
+                <select onchange="assignOperatorByAdmin('${fault.id}', this.value)" style="width: 100%; padding: 8px; border-radius: 4px; background: #334155; color: white; border: 1px solid var(--warning);">
+                    ${options}
+                </select>
+            </div>`;
+        }
         
         div.innerHTML = `
             ${typeHtml}
@@ -878,6 +905,7 @@ function openFaultSelectionModal(faults) {
             ${reporterHtml}
             ${helpersModalHtml}
             ${dateHtml}
+            ${adminAssignHtml}
             <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
                 ${actionButtonsHtml}
             </div>
@@ -892,6 +920,28 @@ function openFaultSelectionModal(faults) {
 function closeFaultSelectionModal() {
     document.getElementById('fault-selection-modal').style.display = 'none';
 }
+
+// Yeni: Admin tarafından görevli atama
+window.assignOperatorByAdmin = function(faultId, operatorName) {
+    if (!loggedInOperator) return; 
+    
+    if (!operatorName) {
+        db.collection('arizalar').doc(faultId).update({
+            assignedTo: firebase.firestore.FieldValue.delete()
+        }).then(() => {
+            alert("Görevli başarıyla kaldırıldı.");
+            closeFaultSelectionModal();
+        }).catch(err => alert("Hata: " + err.message));
+        return;
+    }
+    
+    db.collection('arizalar').doc(faultId).update({
+        assignedTo: operatorName
+    }).then(() => {
+        alert(operatorName + " bu arızaya başarıyla atandı! (İşe henüz başlanmadı)");
+        closeFaultSelectionModal();
+    }).catch(err => alert("Hata: " + err.message));
+};
 
 // Yeni: İşi üzerine alıp çalışmaya başlar
 function startWork(faultId) {
