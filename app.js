@@ -1810,7 +1810,7 @@ function openThemeModal() {
         const btn = document.createElement('button');
         btn.style.backgroundColor = c.hex;
         btn.style.width = '100%';
-        btn.style.aspectRatio = '1/1';
+        btn.style.height = '50px'; // Android uyumluluğu için sabit yükseklik
         btn.style.borderRadius = '8px';
         btn.style.border = (selectedThemeColor === c.hex) ? '3px solid white' : '1px solid rgba(255,255,255,0.2)';
         btn.style.cursor = 'pointer';
