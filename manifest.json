@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Bakım & Arıza Paneli",
     "short_name": "Arıza Paneli",
     "description": "Bakım operatörleri için arıza bildirim ve yönetim paneli.",
@@ -8,14 +8,15 @@
     "theme_color": "#2563eb",
     "icons": [
         {
-            "src": "https://cdn-icons-png.flaticon.com/512/2885/2885417.png",
+            "src": "AKGLOG.png",
             "sizes": "512x512",
             "type": "image/png"
         },
         {
-            "src": "https://cdn-icons-png.flaticon.com/512/2885/2885417.png",
+            "src": "AKGLOG.png",
             "sizes": "192x192",
             "type": "image/png"
         }
     ]
 }
+
