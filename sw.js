@@ -1,10 +1,13 @@
-const CACHE_NAME = 'bakim-ariza-v3';
+﻿const CACHE_NAME = 'bakim-ariza-v4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './style.css',
     './app.js',
-    './manifest.json'
+    './manifest.json',
+    './weekly_report.js',
+    './AKGLOG.png',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
 ];
 
 // Service Worker Yükleme (Install) - Dosyaları Önbelleğe Al
@@ -45,3 +48,4 @@ self.addEventListener('fetch', event => {
         })
     );
 });
+

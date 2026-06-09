@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --bg-color: #0f172a;
     --surface-color: #1e293b;
     --surface-light: #334155;
@@ -401,3 +401,32 @@ textarea.form-control {
     animation: spin 1s linear infinite;
 }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+
+/* === PWA VE MOBİL UYUM (iOS & ANDROID) === */
+body {
+    /* Metinlerin yanlışlıkla seçilmesini engeller (Uygulama hissi verir) */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none; /* iOS'ta uzun basınca çıkan menüyü engeller */
+    
+    /* iOS çentik ve alt çizgi (Home Indicator) için güvenli alan */
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top);
+}
+
+/* Sadece input alanlarında metin seçimine ve yazmaya izin ver */
+input, textarea, select {
+    -webkit-user-select: auto;
+    user-select: auto;
+}
+
+/* Tüm tıklanabilir butonlar için dokunma iyileştirmesi */
+button, .fault-card, tr, select {
+    /* Çift tıklayıp yakınlaştırmayı engeller, tıklama gecikmesini (300ms) kaldırır */
+    touch-action: manipulation;
+    /* Tıklama sırasındaki mavi gölge efektini (highlight) kaldırır */
+    -webkit-tap-highlight-color: transparent;
+}
