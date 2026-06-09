@@ -354,32 +354,55 @@ function checkDailySync() {
 async function exportAndCleanClosedFaults() {
     const btn = document.getElementById('btn-manual-export');
     const oldText = btn.innerHTML;
-    btn.innerHTML = "⏳ İŞLEM YAPILIYOR LÜTFEN BEKLEYİN...";
-    btn.disabled = true;
+    if (btn) {
+        btn.innerHTML = "⏳ İŞLEM YAPILIYOR LÜTFEN BEKLEYİN...";
+        btn.disabled = true;
+    }
 
     try {
-        // Sadece 'Kapalı' olanları çek
         const snapshot = await db.collection('arizalar').where('status', '==', 'Kapalı').get();
+        
+        const today = new Date();
+        const todayStr = today.toLocaleDateString('tr-TR');
+        
         let docIdsToDelete = [];
-        snapshot.forEach(doc => docIdsToDelete.push(doc.id));
+        let exportData = [];
+        let validDocs = [];
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            let compDateObj = null;
+            if (data.completedAt) {
+                if (typeof data.completedAt.toDate === 'function') {
+                    compDateObj = data.completedAt.toDate();
+                } else {
+                    compDateObj = new Date(data.completedAt);
+                }
+            }
+
+            // Sadece kapanma tarihi BUGÜN OLMAYAN (1 gün geçmiş) kayıtları al
+            if (compDateObj && compDateObj.toLocaleDateString('tr-TR') !== todayStr) {
+                docIdsToDelete.push(doc.id);
+                validDocs.push({ id: doc.id, data: data });
+            }
+        });
 
         if (docIdsToDelete.length === 0) {
-            alert("Aktarılacak kapalı arıza bulunamadı!");
+            alert("Aktarılacak eski kapalı arıza bulunamadı! (Bugün kapatılanlar gün sonuna kadar kalır)");
             const nowStr = new Date().toLocaleString('tr-TR');
             localStorage.setItem('lastAutoExportFullDate', nowStr);
             const lbl = document.getElementById('last-export-time-label');
             if (lbl) lbl.innerText = nowStr;
             
-            btn.innerHTML = oldText;
-            btn.disabled = false;
+            if (btn) {
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+            }
             return;
         }
 
-        let exportData = [];
-
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            docIdsToDelete.push(doc.id);
+        validDocs.forEach(item => {
+            const data = item.data;
 
             // Bakım Logu ve Toplam Süre Hesaplama
             let bakimLogu = "Kayıt Yok";
@@ -567,4 +590,129 @@ async function exportAndCleanClosedFaults() {
         btn.innerHTML = oldText;
         btn.disabled = false;
     }
+}
+
+// ------------------------------------------------------------------
+// HAFTALIK ÇALIŞMA RAPORU (MODAL VE PDF)
+// ------------------------------------------------------------------
+async function openWeeklyReportModal() {
+    const modal = document.getElementById('weekly-report-modal');
+    const tbody = document.getElementById('weekly-report-tbody');
+    const lblWeek = document.getElementById('report-week-start-date');
+    
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px;">Yükleniyor...</td></tr>';
+    modal.style.display = 'flex';
+
+    try {
+        const docRef = db.collection('settings').doc('weeklyStats');
+        const docSnap = await docRef.get();
+        
+        if (!docSnap.exists) {
+            // TEST AMAÇLI DUMMY VERİ OLUŞTUR
+            const d = new Date();
+            const day = d.getDay(); 
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(d.setDate(diff)).toLocaleDateString('tr-TR');
+            
+            const dummyData = {
+                weekStartDate: monday,
+                stats: {
+                    "SİSTEM TEST (SİLEBİLİRSİNİZ)": {
+                        "Pazartesi": {mins: 0, count: 0},
+                        "Salı": {mins: 5, count: 1},
+                        "Çarşamba": {mins: 0, count: 0},
+                        "Perşembe": {mins: 0, count: 0},
+                        "Cuma": {mins: 0, count: 0},
+                        "Cumartesi": {mins: 0, count: 0},
+                        "Pazar": {mins: 0, count: 0}
+                    }
+                }
+            };
+            await docRef.set(dummyData);
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px; color: green;">Sistem sıfırdan başlatıldı. Lütfen pencereyi kapatıp tekrar açın.</td></tr>';
+            return;
+        }
+
+        const data = docSnap.data();
+        lblWeek.innerText = data.weekStartDate || "Bilinmiyor";
+
+        const stats = data.stats || {};
+        const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+        
+        let html = "";
+        
+        const allOperators = localOperators.map(op => op.name.toUpperCase());
+        Object.keys(stats).forEach(op => {
+            if (!allOperators.includes(op) && op !== "SİSTEM TEST (SİLEBİLİRSİNİZ)") {
+                allOperators.push(op);
+            }
+        });
+        
+        allOperators.sort();
+
+        allOperators.forEach(operatorName => {
+            const opStats = stats[operatorName] || {};
+            let totalMin = 0;
+            let totalCount = 0;
+            let rowHtml = `<td style="padding: 10px; border: 1px solid #cbd5e1; font-weight: bold;">${operatorName}</td>`;
+            
+            days.forEach(d => {
+                const statVal = opStats[d];
+                let mins = 0;
+                let count = 0;
+                
+                if (typeof statVal === 'number') {
+                    mins = statVal;
+                    count = mins > 0 ? 1 : 0;
+                } else if (statVal && typeof statVal === 'object') {
+                    mins = statVal.mins || 0;
+                    count = statVal.count || 0;
+                }
+                
+                totalMin += mins;
+                totalCount += count;
+                
+                let display = mins > 0 ? (mins >= 60 ? `${Math.floor(mins/60)}s ${mins%60}d` : `${mins}d`) : "-";
+                if (count > 0) {
+                    display += `<br><small style="color:#64748b;">(${count} Müd.)</small>`;
+                }
+                rowHtml += `<td style="padding: 10px; border: 1px solid #cbd5e1; text-align: center;">${display}</td>`;
+            });
+            
+            let totalDisplay = totalMin > 0 ? (totalMin >= 60 ? `${Math.floor(totalMin/60)}s ${totalMin%60}d` : `${totalMin}d`) : "0d";
+            if (totalCount > 0) {
+                totalDisplay += `<br><small style="color:#64748b;">(${totalCount} İşlem)</small>`;
+            }
+            rowHtml += `<td style="padding: 10px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; background-color: #f1f5f9;">${totalDisplay}</td>`;
+            
+            html += `<tr>${rowHtml}</tr>`;
+        });
+
+        if (html === "") {
+            html = '<tr><td colspan="9" style="text-align:center; padding: 20px;">Bu hafta için henüz kayıt yok.</td></tr>';
+        }
+
+        tbody.innerHTML = html;
+        
+    } catch (err) {
+        console.error("Rapor çekilirken hata:", err);
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px; color: red;">Veri çekilirken hata oluştu.</td></tr>';
+    }
+}
+
+function exportReportToPDF() {
+    const element = document.getElementById('weekly-report-content');
+    const weekStart = document.getElementById('report-week-start-date').innerText;
+    
+    // PDF Ayarları
+    const opt = {
+      margin:       10,
+      filename:     `Haftalik_Calisma_Raporu_${weekStart}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+
+    // html2pdf kütüphanesini kullanarak PDF oluştur ve indir
+    html2pdf().set(opt).from(element).save();
 }

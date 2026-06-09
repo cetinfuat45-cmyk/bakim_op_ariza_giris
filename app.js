@@ -119,6 +119,7 @@ async function fetchConfigFromFirebase() {
             document.getElementById('user-info').innerText = "Lütfen PIN Kodunuzu Girin";
             
             checkSavedLogin();
+            checkDailySync();
         } else {
             // Eğer Firebase tamamen boşsa otomatik olarak ilk kurulumu yap
             document.getElementById('user-info').innerText = "Sistem İlk Kurulumu Yapılıyor (Excel'e bağlanılıyor)...";
@@ -182,7 +183,7 @@ function login() {
     }
 
     // Girilen PIN kodunu Firebase'den okuduğumuz listede ara
-    const operator = operatorsList.find(op => op.pin === pinInput);
+    const operator = operatorsList.find(op => String(op.pin).trim() === String(pinInput).trim());
 
     if (operator) {
         loggedInOperator = operator;
@@ -200,7 +201,7 @@ function checkSavedLogin() {
     if (savedOp) {
         // Localstorage'daki objeyi mevcut operatör listesiyle eşleştirip güncel halini alalım
         const parsedOp = JSON.parse(savedOp);
-        const freshOp = operatorsList.find(op => op.pin === parsedOp.pin);
+        const freshOp = operatorsList.find(op => String(op.pin).trim() === String(parsedOp.pin).trim());
         
         if (freshOp) {
             loggedInOperator = freshOp;
@@ -1275,6 +1276,13 @@ function saveIntervention() {
     // Tüm logları birleştir
     const allNewLogs = [logEntry, ...helperLogs];
     
+    // Haftalık istatistikleri güncelle
+    allNewLogs.forEach(log => {
+        if (log.operator) {
+            updateWeeklyStats(log.operator, log.durationMin || 0);
+        }
+    });
+    
     const faultRef = db.collection('arizalar').doc(activeInterventionFaultId);
     
     // Duruma göre güncellenecek alanları belirle
@@ -1395,6 +1403,11 @@ function showDashboard() {
     
     const oldAdminBtn = document.getElementById('btn-sync');
     if (oldAdminBtn) oldAdminBtn.remove();
+    
+    const addOpMenuBtn = document.getElementById('btn-add-op-menu');
+    if (addOpMenuBtn) {
+        addOpMenuBtn.style.display = 'none'; // Varsayılan olarak gizle
+    }
 
     if (role.includes('admin') || role.includes('admın') || role.includes('yönetici') || role.includes('yonetici')) {
         const syncBtn = document.createElement('button');
@@ -1408,6 +1421,10 @@ function showDashboard() {
         // Barkod okut butonunun hemen üstüne ekleyelim
         const dashScreen = document.getElementById('dashboard-screen');
         dashScreen.insertBefore(syncBtn, dashScreen.firstChild);
+        
+        if (addOpMenuBtn) {
+            addOpMenuBtn.style.display = 'flex'; // Sadece admine göster
+        }
     }
 }
 
@@ -2079,4 +2096,291 @@ function saveNewOperator() {
         // Hatada geri al
         operatorsList.pop();
     });
+}
+
+// ----------------------------------------------------
+// OTOMATİK GÜNLÜK ARŞİVLEME (1 GÜN GEÇMİŞ KAPALI ARIZALAR)
+// ----------------------------------------------------
+function checkDailySync() {
+    const now = new Date();
+    const today = now.toLocaleDateString('tr-TR');
+    const lastExportDate = localStorage.getItem('lastAutoExportDate');
+
+    // Eğer bugün hiç aktarım yapılmamışsa hemen başlat
+    if (lastExportDate !== today) {
+        console.log("Yeni gün tespit edildi. Dünün kapalı arızaları Excel'e aktarılıyor...");
+        localStorage.setItem('lastAutoExportDate', today);
+        autoExportPreviousDayFaults();
+    }
+}
+
+async function autoExportPreviousDayFaults() {
+    try {
+        const snapshot = await db.collection('arizalar').where('status', '==', 'Kapalı').get();
+        
+        const today = new Date();
+        const todayStr = today.toLocaleDateString('tr-TR');
+        
+        let docIdsToDelete = [];
+        let exportData = [];
+        let validDocs = [];
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            let compDateObj = null;
+            if (data.completedAt) {
+                if (typeof data.completedAt.toDate === 'function') {
+                    compDateObj = data.completedAt.toDate();
+                } else {
+                    compDateObj = new Date(data.completedAt);
+                }
+            }
+
+            if (compDateObj && compDateObj.toLocaleDateString('tr-TR') !== todayStr) {
+                docIdsToDelete.push(doc.id);
+                validDocs.push({ id: doc.id, data: data });
+            }
+        });
+
+        if (docIdsToDelete.length === 0) {
+            return; // Hiç yoksa sessizce çık
+        }
+
+        // Gösterge (Toast tarzı bildirim)
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: 'Önceki günün kayıtları arşive gönderiliyor...',
+            showConfirmButton: false,
+            timer: 3000
+        });
+
+        validDocs.forEach(item => {
+            const data = item.data;
+            let bakimLogu = "Kayıt Yok";
+            if (data.interventions && Array.isArray(data.interventions) && data.interventions.length > 0) {
+                bakimLogu = data.interventions
+                    .filter(inv => inv.actionTaken !== "Yardıma katıldı")
+                    .map(inv => {
+                        let mainOp = (inv.operator || "Bilinmeyen").toUpperCase();
+                        let helperText = "";
+                        if (inv.helpers && Array.isArray(inv.helpers)) {
+                            let validHelpers = inv.helpers.filter(h => h && h !== inv.operator);
+                            if (validHelpers.length > 0) {
+                                helperText = ` (Yrd: ${validHelpers.join(", ").toUpperCase()})`;
+                            }
+                        }
+                        let opName = mainOp + helperText;
+                        let d = inv.durationMin || 0;
+                        let actionStr = "";
+                        if (inv.actionTaken === "Arıza ile birlikte yardımı tamamladı") actionStr = "YARDIMI TAMAMLADI";
+                        else if (inv.actionTaken === "Durum değişti, yardımdan ayrıldı" || inv.actionTaken === "Yardımdan ayrıldı") actionStr = "YARDIMDAN AYRILDI";
+                        else {
+                            if (inv.status === 'Kapalı') actionStr = "ARIZAYI KAPATTI";
+                            else if (inv.status === 'Parça Bekliyor') actionStr = "PARÇA BEKLİYOR";
+                            else if (inv.status === 'Dış Servis Bekliyor') actionStr = "DIŞ SERVİS BEKLİYOR";
+                            else if (inv.status === 'Geçici Çözüm') actionStr = "GEÇİCİ ÇÖZÜM UYGULADI";
+                            else if (inv.status === 'Devredildi') actionStr = "VARDİYAYA DEVRETTİ";
+                            else if (inv.actionTaken) actionStr = inv.actionTaken.toUpperCase();
+                            else actionStr = "MÜDAHALE ETTİ";
+                        }
+                        return `${opName} ${actionStr} ( ${d} dk )`;
+                    }).join("\n");
+            } else {
+                let logArr = [];
+                if (data.completedBy) logArr.push(data.completedBy);
+                if (data.helpers && Array.isArray(data.helpers)) {
+                    data.helpers.forEach(h => {
+                        if (h !== data.completedBy) logArr.push(h);
+                    });
+                }
+                bakimLogu = logArr.join(", ");
+            }
+
+            let bitTarih = "";
+            let bitSaat = "";
+            if (data.completedAt) {
+                let d = new Date(data.completedAt);
+                bitTarih = d.toLocaleDateString('tr-TR');
+                bitSaat = d.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+            }
+
+            let basTarih = data.createdAt || "";
+            let basSaat = "";
+            let startObj = null;
+            if (data.createdAt) {
+                if (typeof data.createdAt.toDate === 'function') startObj = data.createdAt.toDate();
+                else if (data.createdAt.seconds) startObj = new Date(data.createdAt.seconds * 1000);
+                else startObj = new Date(data.createdAt);
+                
+                if (startObj && !isNaN(startObj.getTime())) {
+                    basTarih = startObj.toLocaleDateString('tr-TR');
+                    basSaat = startObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+                }
+            }
+
+            let endObj = data.completedAt ? new Date(data.completedAt) : null;
+            let workStartObj = startObj;
+            if (data.startedAt) {
+                if (typeof data.startedAt.toDate === 'function') workStartObj = data.startedAt.toDate();
+                else if (data.startedAt.seconds) workStartObj = new Date(data.startedAt.seconds * 1000);
+                else workStartObj = new Date(data.startedAt);
+            }
+            
+            let workBasTarih = basTarih;
+            let workBasSaat = basSaat;
+            if (workStartObj && !isNaN(workStartObj.getTime())) {
+                workBasTarih = workStartObj.toLocaleDateString('tr-TR');
+                workBasSaat = workStartObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+            }
+
+            let totalStoppageMin = 0;
+            if (workStartObj && endObj && !isNaN(workStartObj.getTime()) && !isNaN(endObj.getTime())) {
+                totalStoppageMin = Math.max(0, Math.round((endObj - workStartObj) / 60000));
+            }
+
+            let startEndHours = "";
+            if (workBasSaat && bitSaat) {
+                if (workBasTarih !== bitTarih) {
+                    startEndHours = `${workBasTarih} ${workBasSaat} - ${bitTarih} ${bitSaat}`;
+                } else {
+                    startEndHours = `${workBasSaat} - ${bitSaat}`;
+                }
+            } else if (bitSaat) {
+                startEndHours = bitSaat;
+            }
+
+            let basTarihVeSaat = basTarih;
+            if (basSaat) {
+                basTarihVeSaat = basTarih + " " + basSaat;
+            }
+            
+            let formattedStoppage = totalStoppageMin + " dk";
+            if (totalStoppageMin > 60) {
+                let h = Math.floor(totalStoppageMin / 60);
+                let m = totalStoppageMin % 60;
+                formattedStoppage = `${h} saat ${m} dk`;
+            }
+
+            exportData.push([
+                basTarihVeSaat,                
+                data.userName || "",           
+                data.costCenter || "",         
+                data.machine || "",            
+                data.shift || "",              
+                data.jobType || "",            
+                data.description || "",        
+                data.photoUrl ? "Var" : "Yok", 
+                bakimLogu,                     
+                bitTarih,                      
+                startEndHours,                 
+                formattedStoppage,             
+                data.stoppageReason || "",     
+                data.faultReason || "",        
+                data.actionTaken || "",        
+                data.partsChanged || ""        
+            ]);
+        });
+
+        const payload = {
+            action: "exportClosedFaults",
+            data: exportData
+        };
+
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const batch = db.batch();
+            docIdsToDelete.forEach(id => {
+                batch.delete(db.collection('arizalar').doc(id));
+            });
+            await batch.commit();
+
+            const nowStr = new Date().toLocaleString('tr-TR');
+            localStorage.setItem('lastAutoExportFullDate', nowStr);
+            
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Dünün kayıtları arşivlendi.',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        }
+    } catch (err) {
+        console.error("Otomatik aktarım hatası:", err);
+    }
+}
+
+// ----------------------------------------------------
+// HAFTALIK OPERATÖR ÇALIŞMA SÜRESİ İSTATİSTİĞİ
+// ----------------------------------------------------
+async function updateWeeklyStats(operatorName, durationMin) {
+    if (!operatorName) return;
+    
+    // Süre yoksa veya eksi gelirse 0 kabul et
+    durationMin = Math.max(0, parseInt(durationMin) || 0);
+    
+    try {
+        const docRef = db.collection('settings').doc('weeklyStats');
+        const docSnap = await docRef.get();
+        
+        let data = { weekStartDate: "", stats: {} };
+        if (docSnap.exists) {
+            data = docSnap.data();
+            if (!data.stats) data.stats = {};
+        }
+
+        // Pazartesi'yi bul
+        const d = new Date();
+        const day = d.getDay(); 
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(d.setDate(diff)).toLocaleDateString('tr-TR');
+
+        // Eğer yeni haftaya girilmişse sıfırla
+        if (data.weekStartDate !== monday) {
+            data.weekStartDate = monday;
+            data.stats = {}; 
+        }
+
+        const daysTr = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+        const todayName = daysTr[new Date().getDay()];
+        
+        const opName = operatorName.toUpperCase();
+        if (!data.stats[opName]) {
+            data.stats[opName] = { 
+                "Pazartesi": {mins:0, count:0}, 
+                "Salı": {mins:0, count:0}, 
+                "Çarşamba": {mins:0, count:0}, 
+                "Perşembe": {mins:0, count:0}, 
+                "Cuma": {mins:0, count:0}, 
+                "Cumartesi": {mins:0, count:0}, 
+                "Pazar": {mins:0, count:0} 
+            };
+        }
+        
+        // Geriye dönük uyumluluk (Eğer daha önceki kayıt sadece sayıysa objeye çevir)
+        let currentData = data.stats[opName][todayName];
+        if (typeof currentData === 'number') {
+            currentData = { mins: currentData, count: currentData > 0 ? 1 : 0 };
+        } else if (!currentData) {
+            currentData = { mins: 0, count: 0 };
+        }
+        
+        currentData.mins += durationMin;
+        currentData.count += 1; // Her müdahalede işlem sayısını 1 artır
+
+        data.stats[opName][todayName] = currentData;
+
+        await docRef.set(data);
+    } catch (error) {
+        console.error("Haftalık istatistik güncellenirken hata:", error);
+    }
 }

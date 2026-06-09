@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bakim-ariza-v1';
+const CACHE_NAME = 'bakim-ariza-v3';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
 
 // Service Worker Yükleme (Install) - Dosyaları Önbelleğe Al
 self.addEventListener('install', event => {
+    self.skipWaiting(); // YENİ EKLENDİ: Beklemeyi atla ve anında aktif ol!
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
             console.log('Önbellek (Cache) başarıyla açıldı.');
@@ -27,7 +28,7 @@ self.addEventListener('activate', event => {
                     return caches.delete(key);
                 }
             }));
-        })
+        }).then(() => self.clients.claim()) // YENİ EKLENDİ: Tüm istemcileri (sekmeleri) anında kontrol altına al
     );
 });
 
