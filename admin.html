@@ -226,8 +226,11 @@
             </div>
 
             <div class="modal-buttons" style="padding: 0 20px 20px 20px; display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" class="btn-cancel" onclick="document.getElementById('weekly-report-modal').style.display='none'" style="background: #64748b; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">Kapat</button>
-                <button type="button" class="btn-save" onclick="exportReportToPDF()" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">📄 PDF Olarak İndir</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <button type="button" onclick="document.getElementById('weekly-report-modal').style.display='none'" style="padding: 12px 24px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1; margin-right: 10px;">Kapat</button>
+                    <button type="button" onclick="syncWeeklyStatsFromArizalar()" style="padding: 12px 24px; background: #eab308; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1; margin-right: 10px;">🔄 Bugünün Verilerini Senkronize Et</button>
+                    <button type="button" onclick="exportReportToPDF()" style="padding: 12px 24px; background: #e74c3c; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1;">📄 PDF Olarak İndir</button>
+                </div>
             </div>
         </div>
     </div>
@@ -240,6 +243,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     
     <!-- ADMIN MANTIĞI -->
-    <script src="admin.js?v=7"></script>
+    <script src="admin.js?v=9"></script>
 </body>
 </html>

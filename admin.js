@@ -700,6 +700,101 @@ async function openWeeklyReportModal() {
     }
 }
 
+async function syncWeeklyStatsFromArizalar() {
+    if (!confirm("Bugün kapatılan tüm işlerin süreleri taranacak ve haftalık rapora otomatik eklenecektir. Emin misiniz?")) return;
+    
+    try {
+        const btn = document.querySelector('button[onclick="syncWeeklyStatsFromArizalar()"]');
+        const oldText = btn.innerText;
+        btn.innerText = "Senkronize Ediliyor...";
+        btn.disabled = true;
+
+        const arizalarSnap = await db.collection('arizalar').get();
+        let syncCount = 0;
+        
+        // Bugünün başlangıcı
+        const todayStart = new Date();
+        todayStart.setHours(0,0,0,0);
+        
+        // Hangi operatör bugün kaç dakika çalışmış ve kaç işlem yapmış hesapla
+        const todayStats = {};
+
+        arizalarSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.interventions && Array.isArray(data.interventions)) {
+                data.interventions.forEach(inv => {
+                    if (inv.timestamp) {
+                        const invDate = new Date(inv.timestamp);
+                        if (invDate >= todayStart) {
+                            // Bugün yapılmış bir müdahale
+                            const opName = inv.operator.toUpperCase();
+                            const duration = Math.max(0, parseInt(inv.durationMin) || 0);
+                            
+                            if (!todayStats[opName]) {
+                                todayStats[opName] = { mins: 0, count: 0 };
+                            }
+                            todayStats[opName].mins += duration;
+                            todayStats[opName].count += 1;
+                            syncCount++;
+                        }
+                    }
+                });
+            }
+        });
+
+        if (syncCount === 0) {
+            alert("Bugün yapılmış herhangi bir işlem bulunamadı.");
+            btn.innerText = oldText;
+            btn.disabled = false;
+            return;
+        }
+
+        // Şimdi weeklyStats'ı çekip bugünün verilerini ez
+        const docRef = db.collection('settings').doc('weeklyStats');
+        const docSnap = await docRef.get();
+        let statsData = { weekStartDate: "", stats: {} };
+        if (docSnap.exists) {
+            statsData = docSnap.data();
+            if (!statsData.stats) statsData.stats = {};
+        }
+
+        const d = new Date();
+        const day = d.getDay(); 
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(d.setDate(diff)).toLocaleDateString('tr-TR');
+
+        if (statsData.weekStartDate !== monday) {
+            statsData.weekStartDate = monday;
+            statsData.stats = {}; 
+        }
+
+        const daysTr = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+        const todayName = daysTr[new Date().getDay()];
+
+        for (const [op, vals] of Object.entries(todayStats)) {
+            if (!statsData.stats[op]) {
+                statsData.stats[op] = { 
+                    "Pazartesi": {mins:0, count:0}, "Salı": {mins:0, count:0}, "Çarşamba": {mins:0, count:0}, 
+                    "Perşembe": {mins:0, count:0}, "Cuma": {mins:0, count:0}, "Cumartesi": {mins:0, count:0}, "Pazar": {mins:0, count:0} 
+                };
+            }
+            statsData.stats[op][todayName] = { mins: vals.mins, count: vals.count };
+        }
+
+        await docRef.set(statsData);
+        alert(`Başarılı! Bugün yapılan toplam ${syncCount} işlem taranarak istatistiklere eklendi.`);
+        
+        btn.innerText = oldText;
+        btn.disabled = false;
+        
+        openWeeklyReportModal(); // Tabloyu yenile
+    } catch (error) {
+        console.error("Senkronizasyon hatası:", error);
+        alert("Senkronizasyon sırasında hata oluştu!");
+        document.querySelector('button[onclick="syncWeeklyStatsFromArizalar()"]').disabled = false;
+    }
+}
+
 function exportReportToPDF() {
     const element = document.getElementById('weekly-report-content');
     const weekStart = document.getElementById('report-week-start-date').innerText;
