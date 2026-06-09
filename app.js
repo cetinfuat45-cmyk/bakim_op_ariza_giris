@@ -1,4 +1,4 @@
-// FIREBASE BAĞLANTISI (Sizin orijinal projenizden kopyalandı)
+﻿// FIREBASE BAĞLANTISI (Sizin orijinal projenizden kopyalandı)
 const firebaseConfig = {
     apiKey: "AIzaSyAEqLYUevIJCcLrJa-05MXx5ik-QFouq9o",
     authDomain: "arizabildirim-89dfa.firebaseapp.com",
@@ -133,10 +133,14 @@ async function fetchConfigFromFirebase() {
 
 // Excel'den Veri Çek ve Firebase'e Kaydet (Sadece Admin Görebilir)
 async function syncFromExcel() {
-    try {
-        const btn = document.getElementById('btn-sync');
-        if(btn) btn.innerText = "⏳ Güncelleniyor...";
+    const btn = document.getElementById('btn-admin-fetch');
+    const oldText = btn ? btn.innerHTML : "";
+    if(btn) {
+        btn.innerText = "⏳ GÜNCELLENİYOR...";
+        btn.disabled = true;
+    }
 
+    try {
         const response = await fetch(GOOGLE_SCRIPT_URL);
         const result = await response.json();
         
@@ -154,16 +158,28 @@ async function syncFromExcel() {
             faultReasonsList = result.data.faultReasons || [];
             stoppageReasonsList = result.data.stoppageReasons || [];
             
-            console.log("Sistem ilk kez Excel'den çekildi.");
-            document.getElementById('user-info').innerText = "Kurulum Tamam! Lütfen PIN girin.";
+            alert("✅ Veriler Google Sheets'ten başarıyla çekildi ve sisteme yüklendi!");
+            
+            if(btn) {
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+            }
             return true;
         } else {
-            alert("Excel'den veri çekilirken hata oluştu!");
+            alert("❌ Excel'den veri çekilirken hata oluştu!");
+            if(btn) {
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+            }
             return false;
         }
     } catch (error) {
         console.error("Senkronizasyon Hatası:", error);
-        alert("Bağlantı hatası yaşandı!");
+        alert("❌ Bağlantı hatası yaşandı!");
+        if(btn) {
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+        }
         return false;
     }
 }
@@ -225,6 +241,177 @@ function loadMachineDictionary() {
         }
     } catch(e) {
         console.error("Sözlük yüklenirken hata:", e);
+    }
+}
+
+// ----------------------------------------------------
+// ADMIN OPERATÖR YÖNETİMİ (INDEX İÇİ)
+// ----------------------------------------------------
+
+let adminEditingOpIndex = -1;
+
+function openOpListModal() {
+    document.getElementById('admin-op-list-modal').style.display = 'flex';
+    renderOpListInModal();
+}
+
+function renderOpListInModal() {
+    const container = document.getElementById('admin-op-list-container');
+    container.innerHTML = '';
+    
+    if (!operatorsList || operatorsList.length === 0) {
+        container.innerHTML = '<p style="color: gray; text-align: center;">Operatör bulunamadı.</p>';
+        return;
+    }
+
+    operatorsList.forEach((op, index) => {
+        let imgUrl = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+        if (op.imageUrl) {
+            imgUrl = op.imageUrl;
+            const driveMatch = imgUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            if (driveMatch && driveMatch[1]) {
+                imgUrl = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w500`;
+            }
+        }
+
+        const exemptText = op.qrExemptUntil && (op.qrExemptUntil === -1 || op.qrExemptUntil > Date.now()) 
+            ? '<span style="color: #10b981; font-weight: bold;">🔓 Tıklama İzni Açık</span>' 
+            : '<span style="color: #ef4444;">🔒 Sadece QR</span>';
+
+        const card = document.createElement('div');
+        card.style = "background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 15px; display: flex; align-items: center; gap: 15px;";
+        card.innerHTML = `
+            <img src="${imgUrl}" alt="Foto" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary);">
+            <div style="flex: 1;">
+                <h3 style="margin: 0; color: white; font-size: 1.1rem;">${op.name}</h3>
+                <p style="margin: 4px 0 0 0; color: var(--text-muted); font-size: 0.85rem;">
+                    PIN: <strong style="color: var(--primary);">${op.pin}</strong> | Yetki: ${op.role || "Yok"}
+                    <br>${exemptText}
+                </p>
+            </div>
+            <button onclick="openOpEditModal(${index})" style="background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">DÜZENLE</button>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function openOpEditModal(index) {
+    adminEditingOpIndex = index;
+    const isNew = index === -1;
+    
+    document.getElementById('op-edit-title').innerText = isNew ? "➕ Yeni Operatör Ekle" : "✏️ Operatör Düzenle";
+    
+    if (isNew) {
+        document.getElementById('op-edit-name').value = '';
+        document.getElementById('op-edit-pin').value = '';
+        document.getElementById('op-edit-role').value = '';
+        document.getElementById('op-edit-img').value = '';
+        document.getElementById('op-edit-qr').value = '0';
+    } else {
+        const op = operatorsList[index];
+        document.getElementById('op-edit-name').value = op.name || '';
+        document.getElementById('op-edit-pin').value = op.pin || '';
+        document.getElementById('op-edit-role').value = op.role || '';
+        document.getElementById('op-edit-img').value = op.imageUrl || '';
+        
+        let selectVal = "0";
+        if (op.qrExemptUntil) {
+            if (op.qrExemptUntil === -1) selectVal = "-1";
+            else {
+                const diffHours = (op.qrExemptUntil - Date.now()) / (1000 * 60 * 60);
+                if (diffHours > 0) {
+                    if (diffHours <= 1) selectVal = "1";
+                    else if (diffHours <= 3) selectVal = "3";
+                    else selectVal = "24";
+                }
+            }
+        }
+        document.getElementById('op-edit-qr').value = selectVal;
+    }
+    
+    document.getElementById('admin-op-edit-modal').style.display = 'flex';
+}
+
+async function saveOpEdit() {
+    const name = document.getElementById('op-edit-name').value.trim();
+    const pin = document.getElementById('op-edit-pin').value.trim();
+    const role = document.getElementById('op-edit-role').value.trim();
+    const img = document.getElementById('op-edit-img').value.trim();
+    const qrExemptVal = parseInt(document.getElementById('op-edit-qr').value);
+
+    if (!name || !pin) {
+        alert("Lütfen Ad Soyad ve PIN kodunu girin!");
+        return;
+    }
+
+    let qrExemptUntil = null;
+    if (qrExemptVal === -1) {
+        qrExemptUntil = -1;
+    } else if (qrExemptVal > 0) {
+        qrExemptUntil = Date.now() + (qrExemptVal * 60 * 60 * 1000);
+    }
+
+    const newOpObj = {
+        name: name,
+        pin: pin,
+        role: role,
+        imageUrl: img,
+        qrExemptUntil: qrExemptUntil
+    };
+
+    const saveBtn = document.getElementById('btn-save-op');
+    saveBtn.innerText = "Kaydediliyor...";
+    saveBtn.disabled = true;
+
+    try {
+        let updatedList = [...operatorsList];
+        if (adminEditingOpIndex > -1) {
+            updatedList[adminEditingOpIndex] = newOpObj;
+        } else {
+            updatedList.push(newOpObj);
+        }
+
+        // 1. Google Sheets'e kaydet
+        const payload = {
+            action: "updateOperators",
+            operators: updatedList
+        };
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            // 2. Firebase'e kaydet
+            await db.collection('settings').doc('config').set({
+                operators: updatedList,
+                rootCauses: rootCausesList,
+                faultReasons: faultReasonsList,
+                stoppageReasons: stoppageReasonsList,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            operatorsList = updatedList; // local arrayi güncelle
+            
+            // Mevcut giren kişi güncellendiyse local storage'ı da güncelle
+            if (loggedInOperator && String(loggedInOperator.pin).trim() === String(pin).trim()) {
+                loggedInOperator = newOpObj;
+                localStorage.setItem("loggedInOperator", JSON.stringify(newOpObj));
+            }
+
+            document.getElementById('admin-op-edit-modal').style.display = 'none';
+            renderOpListInModal();
+            showToast("✅ Operatör güncellendi!");
+        } else {
+            alert("Excel'e yazarken hata oluştu: " + result.error);
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Bağlantı hatası yaşandı! Veriler kaydedilemedi.");
+    } finally {
+        saveBtn.innerText = "💾 Kaydet";
+        saveBtn.disabled = false;
     }
 }
 
@@ -291,14 +478,22 @@ function handleFaultClick(fault) {
     if (loggedInOperator) {
         const opName = (loggedInOperator.name || loggedInOperator.isim || loggedInOperator.ad || "").toString().toLocaleLowerCase('tr-TR');
         const opPin = (loggedInOperator.pin || "").toString().trim();
+        const opRole = (loggedInOperator.role || loggedInOperator.yetki || "").toString().toLocaleLowerCase('tr-TR');
         
-        if (opName.includes('admin') || opName.includes('akif') || opName.includes('şef') || opName.includes('sef') || opName.includes('fuat') || opPin === '9999' || opPin === '0000') {
+        if (opRole.includes('admin') || opRole.includes('yönetici') || opRole.includes('yonetici')) {
             isAdmin = true;
         }
     }
 
-    if (isAdmin) {
-        // Admin ise, tıkladığı arızanın ait olduğu makinedeki TÜM AÇIK arızaları bulalım
+    let isExempt = false;
+    if (loggedInOperator && loggedInOperator.qrExemptUntil) {
+        if (loggedInOperator.qrExemptUntil === -1 || loggedInOperator.qrExemptUntil > Date.now()) {
+            isExempt = true;
+        }
+    }
+
+    if (isAdmin || isExempt) {
+        // Admin veya muaf ise, tıkladığı arızanın ait olduğu makinedeki TÜM AÇIK arızaları bulalım
         if (fault && fault.machine) {
             const dbMachine = fault.machine.trim().toLocaleUpperCase('tr-TR');
             const matchedFaults = currentOpenFaults.filter(f => {
@@ -317,7 +512,7 @@ function handleFaultClick(fault) {
             openFaultSelectionModal([fault]);
         }
     } else {
-        // Normal teknisyense QR okutmaya zorla
+        // Normal teknisyense ve muafiyeti yoksa QR okutmaya zorla
         startQROnlyCamera();
     }
 }
@@ -805,9 +1000,8 @@ function onScanSuccess(decodedText) {
 function openFaultSelectionModal(faults) {
     let isAdmin = false;
     if (loggedInOperator) {
-        const opName = (loggedInOperator.name || loggedInOperator.isim || loggedInOperator.ad || "").toString().toLocaleLowerCase('tr-TR');
-        const opPin = (loggedInOperator.pin || "").toString().trim();
-        if (opName.includes('admin') || opName.includes('akif') || opName.includes('şef') || opName.includes('sef') || opName.includes('fuat') || opPin === '9999' || opPin === '0000') {
+        const opRole = (loggedInOperator.role || loggedInOperator.yetki || "").toString().toLocaleLowerCase('tr-TR');
+        if (opRole.includes('admin') || opRole.includes('yönetici') || opRole.includes('yonetici')) {
             isAdmin = true;
         }
     }
@@ -1345,6 +1539,19 @@ function showDashboard() {
                 profilePic.style.display = 'none';
             }
         }
+        
+        // Admin butonlarını kontrol et
+        const opName = (loggedInOperator.name || loggedInOperator.isim || loggedInOperator.ad || "").toString().toLocaleLowerCase('tr-TR');
+        const opPin = (loggedInOperator.pin || "").toString().trim();
+        const opRole = (loggedInOperator.role || loggedInOperator.yetki || "").toString().toLocaleLowerCase('tr-TR');
+        
+        const isAdmin = opRole.includes('admin') || opRole.includes('yönetici') || opRole.includes('yonetici');
+        
+        document.getElementById('btn-admin-op-settings').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('btn-admin-report').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('btn-admin-export').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('btn-admin-fetch').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('btn-add-op-menu').style.display = isAdmin ? 'flex' : 'none';
     }
 
     // Açık arızaları getirmeyi (dinlemeyi) başlat
@@ -1409,23 +1616,7 @@ function showDashboard() {
         addOpMenuBtn.style.display = 'none'; // Varsayılan olarak gizle
     }
 
-    if (role.includes('admin') || role.includes('admın') || role.includes('yönetici') || role.includes('yonetici')) {
-        const syncBtn = document.createElement('button');
-        syncBtn.id = 'btn-sync';
-        syncBtn.innerText = "⚙️ Admin Paneline Giriş";
-        syncBtn.className = "btn-scan";
-        syncBtn.style.background = "linear-gradient(135deg, #10b981, #047857)";
-        syncBtn.style.marginBottom = "10px";
-        syncBtn.onclick = () => { window.location.href = 'admin.html'; };
-        
-        // Barkod okut butonunun hemen üstüne ekleyelim
-        const dashScreen = document.getElementById('dashboard-screen');
-        dashScreen.insertBefore(syncBtn, dashScreen.firstChild);
-        
-        if (addOpMenuBtn) {
-            addOpMenuBtn.style.display = 'flex'; // Sadece admine göster
-        }
-    }
+    
 }
 
 // Oturumu Kapat
@@ -2384,3 +2575,12 @@ async function updateWeeklyStats(operatorName, durationMin) {
         console.error("Haftalık istatistik güncellenirken hata:", error);
     }
 }
+
+
+
+
+
+
+
+
+
