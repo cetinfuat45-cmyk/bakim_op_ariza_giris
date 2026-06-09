@@ -123,11 +123,13 @@ function editOperator(index) {
     
     editingIndex = index;
     const btn = document.getElementById('btn-add-op');
-    btn.innerText = "✏️ Güncelle";
+    btn.innerText = "💾 Güncelle";
     btn.style.background = "#3b82f6"; // mavi
+
+    document.getElementById('modal-title').innerText = "✏️ Operatör Düzenle";
     
-    // Forma kaydır
-    document.querySelector('.add-form').scrollIntoView({ behavior: 'smooth' });
+    // Modalı aç
+    document.getElementById('operator-modal').style.display = 'flex';
 }
 
 function addOperator() {
@@ -177,6 +179,26 @@ function addOperator() {
 
     markAsDirty();
     renderOperators();
+    closeOperatorModal();
+}
+
+function openModalForAdd() {
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-pin').value = '';
+    document.getElementById('new-role').value = '';
+    document.getElementById('new-img').value = '';
+    
+    editingIndex = -1;
+    const btn = document.getElementById('btn-add-op');
+    btn.innerText = "➕ Ekle";
+    btn.style.background = "var(--primary)";
+    
+    document.getElementById('modal-title').innerText = "➕ Yeni Operatör Ekle";
+    document.getElementById('operator-modal').style.display = 'flex';
+}
+
+function closeOperatorModal() {
+    document.getElementById('operator-modal').style.display = 'none';
 }
 
 function deleteOperator(index) {

@@ -1904,3 +1904,179 @@ function resetThemePrefs() {
     document.documentElement.style.setProperty('--border-color', '#475569');
     document.documentElement.style.fontSize = '16px';
 }
+
+// ----------------------------------------------------
+// WHATSAPP RAPORU OLUŞTURMA
+// ----------------------------------------------------
+function generateWhatsAppReport() {
+    Swal.fire({
+        title: 'Rapor Hazırlanıyor...',
+        text: 'Lütfen bekleyin',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('tr-TR');
+
+    let openTasks = [];
+    let completedToday = [];
+    let operatorStats = {}; 
+
+    db.collection('arizalar').get().then(snapshot => {
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            
+            if (data.status === 'Açık') {
+                openTasks.push(data);
+            } else if (data.status === 'Kapalı') {
+                let compDateObj = null;
+                if (data.completedAt) {
+                    if (typeof data.completedAt.toDate === 'function') {
+                        compDateObj = data.completedAt.toDate();
+                    } else {
+                        compDateObj = new Date(data.completedAt);
+                    }
+                }
+                
+                if (compDateObj && !isNaN(compDateObj.getTime()) && compDateObj.toLocaleDateString('tr-TR') === todayStr) {
+                    completedToday.push(data);
+                    
+                    if (data.interventions) {
+                        data.interventions.forEach(log => {
+                            if (!operatorStats[log.operator]) {
+                                operatorStats[log.operator] = { jobsCompleted: 0, totalMinutes: 0 };
+                            }
+                            operatorStats[log.operator].totalMinutes += parseInt(log.durationMin) || 0;
+                        });
+                    }
+                    
+                    if (data.completedBy) {
+                        if (!operatorStats[data.completedBy]) {
+                            operatorStats[data.completedBy] = { jobsCompleted: 0, totalMinutes: 0 };
+                        }
+                        operatorStats[data.completedBy].jobsCompleted += 1;
+                    }
+                }
+            }
+        });
+
+        let report = "*VARDİYA / GÜNLÜK TESLİM RAPORU*\n";
+        report += "Tarih: " + todayStr + "\n\n";
+
+        report += "*OPERATÖR BİLGİLERİ (Bugün)*\n";
+        let opNames = Object.keys(operatorStats);
+        if (opNames.length === 0) {
+            report += "_Bugün herhangi bir çalışma/müdahale kaydı bulunamadı._\n";
+        } else {
+            opNames.forEach(op => {
+                let stats = operatorStats[op];
+                let hours = Math.floor(stats.totalMinutes / 60);
+                let mins = stats.totalMinutes % 60;
+                let timeStr = hours > 0 ? `${hours}s ${mins}d` : `${mins}d`;
+                report += `- *${op}:* ${stats.jobsCompleted} İş Bitirdi (Çalışma: ${timeStr})\n`;
+            });
+        }
+        report += "\n";
+
+        report += "*BİTİRİLEN İŞLER (Bugün)*\n";
+        if (completedToday.length === 0) {
+            report += "_Bugün kapatılan iş yok._\n";
+        } else {
+            completedToday.forEach((task, index) => {
+                let desc = task.description || "";
+                if (desc.length > 30) desc = desc.substring(0, 30) + "...";
+                let solver = task.completedBy || "Bilinmiyor";
+                let machine = task.machine || "Bilinmeyen Makine";
+                report += `${index + 1}. ${machine} - ${desc} (Çözen: ${solver})\n`;
+            });
+        }
+        report += "\n";
+
+        report += "*DİĞER VARDİYAYA KALAN (AÇIK) İŞLER*\n";
+        if (openTasks.length === 0) {
+            report += "_Harika! Bekleyen hiçbir arıza yok._\n";
+        } else {
+            openTasks.forEach((task, index) => {
+                let desc = task.description || "";
+                if (desc.length > 30) desc = desc.substring(0, 30) + "...";
+                let assigned = task.assignedTo || "Atanmadı";
+                let machine = task.machine || "Bilinmeyen Makine";
+                report += `${index + 1}. ${machine} - ${desc} (Görevli: ${assigned})\n`;
+            });
+        }
+
+        Swal.close();
+
+        // Encode and send
+        const encodedText = encodeURIComponent(report);
+        const waUrl = `https://wa.me/?text=${encodedText}`;
+        window.open(waUrl, '_blank');
+
+    }).catch(err => {
+        console.error("Rapor hatası: ", err);
+        Swal.fire('Hata!', 'Rapor oluşturulurken bir hata oluştu.', 'error');
+    });
+}
+
+// ----------------------------------------------------
+// YENİ OPERATÖR EKLEME
+// ----------------------------------------------------
+function openAddOperatorModal() {
+    // Sadece adminlerin görmesini istiyorsanız buraya if (!isAdmin) return; ekleyebilirsiniz
+    document.getElementById('new-operator-name').value = '';
+    document.getElementById('new-operator-pin').value = '';
+    document.getElementById('add-operator-modal').style.display = 'flex';
+}
+
+function closeAddOperatorModal() {
+    document.getElementById('add-operator-modal').style.display = 'none';
+}
+
+function saveNewOperator() {
+    const nameInput = document.getElementById('new-operator-name').value.trim();
+    const pinInput = document.getElementById('new-operator-pin').value.trim();
+
+    if (!nameInput) {
+        Swal.fire('Eksik Bilgi', 'Lütfen operatör adını giriniz.', 'warning');
+        return;
+    }
+    if (!pinInput || pinInput.length < 3) {
+        Swal.fire('Eksik Bilgi', 'Lütfen en az 3 haneli bir PIN (şifre) giriniz.', 'warning');
+        return;
+    }
+
+    // Mevcut operatör listesinde bu isim veya pin var mı kontrolü
+    const exists = operatorsList.find(op => op.pin === pinInput || op.name.toLowerCase() === nameInput.toLowerCase());
+    if (exists) {
+        Swal.fire('Hata', 'Bu PIN kodu veya İsim zaten sistemde kayıtlı. Lütfen farklı bir şifre belirleyin.', 'error');
+        return;
+    }
+
+    // Yeni operatörü listeye ekle
+    const newOperator = { name: nameInput, pin: pinInput };
+    
+    // RAM'deki listeyi güncelle
+    operatorsList.push(newOperator);
+
+    // Firebase'e kaydet
+    db.collection('settings').doc('config').update({
+        operators: operatorsList
+    }).then(() => {
+        Swal.fire({
+            icon: 'success',
+            title: 'Başarılı',
+            text: newOperator.name + ' sisteme eklendi!',
+            timer: 2000,
+            showConfirmButton: false
+        });
+        closeAddOperatorModal();
+    }).catch(err => {
+        console.error("Operatör ekleme hatası:", err);
+        Swal.fire('Hata', 'Veritabanına kaydedilirken bir sorun oluştu.', 'error');
+        // Hatada geri al
+        operatorsList.pop();
+    });
+}
