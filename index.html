@@ -266,10 +266,19 @@
         <img id="op-profile-pic" src="" alt="Profil" style="display: none; width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary);">
     </div>
 
+    <!-- MESAJ (BANNER) ALANI -->
+    <div id="message-banner" style="display: none; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 12px 20px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; margin: 0 10px 10px 10px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); align-items: center; justify-content: space-between; z-index: 999; position: relative;">
+        <div id="message-banner-text" style="font-weight: bold; font-size: 0.95rem; flex: 1; padding-right: 10px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+        <button id="btn-message-read" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 8px 14px; font-weight: bold; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">Okudum</button>
+    </div>
+
     <!-- AŞAĞI AÇILIR SİSTEM MENÜSÜ -->
     <div id="settings-menu" style="display: none; position: absolute; top: 65px; left: 15px; background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 12px; width: 200px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); z-index: 10000; flex-direction: column; gap: 8px;">
         <button onclick="document.getElementById('settings-menu').style.display='none'; openClosedTodayModal();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 8px; font-weight: normal; font-size: 0.85rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(34,197,94,0.2);">
             Bugün Kapatılanlar
+        </button>
+        <button onclick="document.getElementById('settings-menu').style.display='none'; openSendMessageModal();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; border: none; border-radius: 8px; font-weight: normal; font-size: 0.85rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(14,165,233,0.2);">
+            ✉️ Mesaj Gönder
         </button>
         <button onclick="document.getElementById('settings-menu').style.display='none'; startQROnlyCamera();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; border-radius: 8px; font-weight: normal; font-size: 0.85rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(245,158,11,0.2);">
             Manuel QR Okut
@@ -523,6 +532,26 @@
             <div class="modal-buttons">
                 <button type="button" class="btn-cancel" onclick="closeAddOperatorModal()">İptal</button>
                 <button type="button" class="btn-save" onclick="saveNewOperator()">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MESAJ GÖNDERME MODALI -->
+    <div id="send-message-modal" class="modal-overlay" style="display: none; z-index: 100000;">
+        <div class="modal-content" style="max-width: 400px;">
+            <h2 style="color: white; margin-top: 0; font-size: 1.3rem; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">✉️ Yeni Mesaj Gönder</h2>
+            
+            <label style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px; display: block;">Mesajınız:</label>
+            <textarea id="modal-send-message-text" rows="3" class="form-control" placeholder="Göndermek istediğiniz mesajı buraya yazın..." style="margin-bottom: 15px; resize: vertical;"></textarea>
+            
+            <label style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px; display: block;">Kime:</label>
+            <div id="send-message-targets" style="max-height: 200px; overflow-y: auto; background: var(--background); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 20px;">
+                <!-- JS ile Doldurulacak -->
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="document.getElementById('send-message-modal').style.display='none';" style="flex: 1;">İptal</button>
+                <button class="btn btn-primary" onclick="submitSendMessage()" style="flex: 1;">Gönder</button>
             </div>
         </div>
     </div>

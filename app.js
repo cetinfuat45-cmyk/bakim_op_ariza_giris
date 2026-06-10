@@ -1820,6 +1820,9 @@ function showDashboard() {
     // Tema ayarlarını uygula
     applyThemePrefs();
     
+    // Mesajları dinlemeye başla
+    listenForMessages();
+    
     // Header'da Operatör ismini göster
     if (loggedInOperator && loggedInOperator.name) {
         document.getElementById('user-info').innerHTML = `👤 Operatör: <strong>${loggedInOperator.name}</strong>`;
@@ -1919,6 +1922,14 @@ function logout() {
     localStorage.removeItem("loggedInOperator");
     loggedInOperator = null;
     document.getElementById('pinCode').value = '';
+    
+    // Mesaj dinlemeyi durdur ve banner'ı gizle
+    if (messagesUnsubscribe) {
+        messagesUnsubscribe();
+        messagesUnsubscribe = null;
+    }
+    const banner = document.getElementById('message-banner');
+    if(banner) banner.style.display = 'none';
     
     // Menü ikonunu ve açık menüyü gizle
     const menuBtn = document.getElementById('main-menu-btn');
@@ -2957,6 +2968,171 @@ function previewOpSettings() {
     saveOpSettings();
     // Sadece fetchOpenFaults'u çağır, böylece DOM hemen güncellenir
     fetchOpenFaults();
+}
+
+// --- MESAJLAŞMA SİSTEMİ (P2P BANNER) ---
+
+let messagesUnsubscribe = null;
+
+function openSendMessageModal() {
+    document.getElementById('modal-send-message-text').value = '';
+    const targetsContainer = document.getElementById('send-message-targets');
+    
+    // Checkbox listesini oluştur
+    let html = `
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom: 8px; color: var(--text-color); font-weight: bold; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">
+            <input type="checkbox" id="msg-target-all" checked onchange="toggleAllMsgTargets(this)"> HERKESE GÖNDER (Tüm Kullanıcılar)
+        </label>
+        <div id="msg-individual-targets" style="display:none; padding-left: 10px; flex-direction: column; gap: 5px;">
+    `;
+    
+    operatorsList.forEach(op => {
+        if (op.name !== loggedInOperator.name) {
+            html += `
+                <label style="display:flex; align-items:center; gap:8px; color: var(--text-muted);">
+                    <input type="checkbox" class="msg-target-cb" value="${op.name}"> ${op.name}
+                </label>
+            `;
+        }
+    });
+    
+    html += `</div>`;
+    targetsContainer.innerHTML = html;
+    
+    document.getElementById('send-message-modal').style.display = 'flex';
+}
+
+function toggleAllMsgTargets(checkbox) {
+    const indDiv = document.getElementById('msg-individual-targets');
+    if (checkbox.checked) {
+        indDiv.style.display = 'none';
+    } else {
+        indDiv.style.display = 'flex';
+    }
+}
+
+async function submitSendMessage() {
+    const text = document.getElementById('modal-send-message-text').value.trim();
+    if (!text) {
+        alert("Lütfen bir mesaj yazın.");
+        return;
+    }
+    
+    const isAll = document.getElementById('msg-target-all').checked;
+    let targetUsers = [];
+    
+    if (isAll) {
+        targetUsers = ["ALL"];
+    } else {
+        const checkboxes = document.querySelectorAll('.msg-target-cb:checked');
+        checkboxes.forEach(cb => targetUsers.push(cb.value));
+        if (targetUsers.length === 0) {
+            alert("Lütfen en az bir kişi seçin veya Herkese Gönder'i işaretleyin.");
+            return;
+        }
+    }
+    
+    const sendBtn = document.querySelector('#send-message-modal .btn-primary');
+    sendBtn.innerText = "Gönderiliyor...";
+    sendBtn.disabled = true;
+    
+    try {
+        await db.collection('messages').add({
+            sender: loggedInOperator.name,
+            text: text,
+            targetUsers: targetUsers,
+            readBy: [],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        document.getElementById('send-message-modal').style.display = 'none';
+        Swal.fire({ title: 'Başarılı', text: 'Mesajınız gönderildi!', icon: 'success', timer: 1500, showConfirmButton: false });
+    } catch (e) {
+        console.error("Mesaj gönderme hatası:", e);
+        alert("Mesaj gönderilemedi: " + e.message);
+    } finally {
+        sendBtn.innerText = "Gönder";
+        sendBtn.disabled = false;
+    }
+}
+
+function listenForMessages() {
+    if (messagesUnsubscribe) messagesUnsubscribe();
+    if (!loggedInOperator) return;
+    
+    // Son 24 saatteki mesajları dinle
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    messagesUnsubscribe = db.collection('messages')
+        .where('createdAt', '>=', yesterday)
+        .onSnapshot(snapshot => {
+            let activeMsg = null;
+            
+            // Tüm mesajları tara, benim okumadığım ilk mesajı bul
+            snapshot.docs.forEach(doc => {
+                const msg = { id: doc.id, ...doc.data() };
+                const isTarget = msg.targetUsers.includes("ALL") || msg.targetUsers.includes(loggedInOperator.name);
+                const isRead = msg.readBy && msg.readBy.includes(loggedInOperator.name);
+                const isSender = msg.sender === loggedInOperator.name;
+                
+                // Eğer hedef ben isem, henüz okumadıysam ve gönderen ben değilsem
+                if (isTarget && !isRead && !isSender) {
+                    if (!activeMsg) activeMsg = msg; 
+                }
+            });
+            
+            const banner = document.getElementById('message-banner');
+            const textEl = document.getElementById('message-banner-text');
+            const readBtn = document.getElementById('btn-message-read');
+            
+            if (activeMsg) {
+                textEl.innerHTML = `💬 <strong>[${activeMsg.sender}]:</strong> ${activeMsg.text}`;
+                
+                // Eğer banner zaten açık değilse sesi çal (Sürekli çalmaması için)
+                if (banner.style.display === 'none') {
+                    try {
+                        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                        gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+                        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.3);
+                    } catch(e) {}
+                }
+                
+                banner.style.display = 'flex';
+                readBtn.onclick = () => markMessageAsRead(activeMsg.id);
+            } else {
+                banner.style.display = 'none';
+            }
+        });
+}
+
+async function markMessageAsRead(msgId) {
+    if (!loggedInOperator) return;
+    
+    const readBtn = document.getElementById('btn-message-read');
+    readBtn.innerText = "...";
+    readBtn.disabled = true;
+    
+    try {
+        await db.collection('messages').doc(msgId).update({
+            readBy: firebase.firestore.FieldValue.arrayUnion(loggedInOperator.name)
+        });
+    } catch (e) {
+        console.error("Okundu işaretleme hatası:", e);
+    } finally {
+        readBtn.innerText = "Okudum";
+        readBtn.disabled = false;
+    }
 }
 
 
