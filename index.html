@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bakım Operatör Paneli</title>
     
-    <!-- PWA GEREKSİNİMLERİ -->
+    <!-- PWA GEREKSINIMLERI -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -117,6 +117,7 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+            #op-view-settings-modal select option { background-color: #1e293b; color: white; }
     </style>
 </head>
 <body>
@@ -124,11 +125,101 @@
     <!-- UYGULAMA İÇİ BİLDİRİM KUTUSU (TOAST) -->
     <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 10px;"></div>
 
+    
+    <!-- OP VERİ GÖSTERGE AYARI MODALI -->
+    <div id="op-view-settings-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 100000; padding: 1rem; background-color: rgba(0,0,0,0.1) !important; pointer-events: none;">
+        <div class="modal-content" style="pointer-events: auto; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); border-radius: 12px; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">⚙️ Görünüm Ayarları</h3>
+                <button onclick="closeOpViewSettingsModal(false)" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            
+            <!-- Sekme Düğmeleri -->
+            <div style="display: flex; gap: 5px; margin-bottom: 15px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 8px;">
+                <button onclick="switchViewTab('tab-guncel')" id="btn-tab-guncel" style="flex:1; padding:8px; border:none; border-radius:6px; background:var(--primary); color:white; font-weight:bold; font-size:0.8rem; cursor:pointer;">Güncel</button>
+                <button onclick="switchViewTab('tab-atanan')" id="btn-tab-atanan" style="flex:1; padding:8px; border:none; border-radius:6px; background:transparent; color:var(--text-muted); font-weight:bold; font-size:0.8rem; cursor:pointer;">Atananlar</button>
+                <button onclick="switchViewTab('tab-eski')" id="btn-tab-eski" style="flex:1; padding:8px; border:none; border-radius:6px; background:transparent; color:var(--text-muted); font-weight:bold; font-size:0.8rem; cursor:pointer;">Eski</button>
+            </div>
+
+            <!-- TAB 1: GÜNCEL ARIZALAR -->
+            <div id="tab-guncel" class="view-tab-content">
+                <h4 style="color:var(--primary); margin-bottom:10px; font-size:0.9rem;">Genel Açık Arızalar Görünümü</h4>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:5px;">Görünüm Tipi</label>
+                    <select id="op-set-guncel-type" onchange="previewOpSettings()" class="form-control" style="background-color: var(--background); color:white; padding:8px; width:100%; border-radius:6px; border:1px solid var(--border-color);">
+                        <option value="card">Kart Görünümü</option>
+                        <option value="row">Satır (Tablo) Görünümü</option>
+                    </select>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-guncel-date" onchange="previewOpSettings()" checked> Tarih ve Saat Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-guncel-shift" onchange="previewOpSettings()" checked> Vardiya Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-guncel-reporter" onchange="previewOpSettings()" checked> Bildiren Kişi Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-guncel-assignee" onchange="previewOpSettings()" checked> Görevli (Atanan) Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-guncel-desc" onchange="previewOpSettings()" checked> Açıklama Göster</label>
+                </div>
+            </div>
+
+            <!-- TAB 2: BANA ATANANLAR -->
+            <div id="tab-atanan" class="view-tab-content" style="display:none;">
+                <h4 style="color:var(--primary); margin-bottom:10px; font-size:0.9rem;">Bana Atanan Görevler Görünümü</h4>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:5px;">Görünüm Tipi</label>
+                    <select id="op-set-atanan-type" onchange="previewOpSettings()" class="form-control" style="background-color: var(--background); color:white; padding:8px; width:100%; border-radius:6px; border:1px solid var(--border-color);">
+                        <option value="card">Kart Görünümü</option>
+                        <option value="row">Satır (Tablo) Görünümü</option>
+                    </select>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-atanan-date" onchange="previewOpSettings()" checked> Tarih ve Saat Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-atanan-shift" onchange="previewOpSettings()" checked> Vardiya Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-atanan-reporter" onchange="previewOpSettings()" checked> Bildiren Kişi Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-atanan-assignee" onchange="previewOpSettings()" checked> Görevli (Atanan) Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-atanan-desc" onchange="previewOpSettings()" checked> Açıklama Göster</label>
+                </div>
+            </div>
+
+            <!-- TAB 3: ESKI ARIZALAR -->
+            <div id="tab-eski" class="view-tab-content" style="display:none;">
+                <h4 style="color:var(--primary); margin-bottom:10px; font-size:0.9rem;">Önceki Günlerden Kalanlar</h4>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:5px;">Görünüm Tipi</label>
+                    <select id="op-set-eski-type" onchange="previewOpSettings()" class="form-control" style="background-color: var(--background); color:white; padding:8px; width:100%; border-radius:6px; border:1px solid var(--border-color);">
+                        <option value="row">Satır (Tablo) Görünümü</option>
+                        <option value="card">Kart Görünümü</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:5px;">Gruplama Tipi</label>
+                    <select id="op-set-eski-group" onchange="previewOpSettings()" class="form-control" style="background-color: var(--background); color:white; padding:8px; width:100%; border-radius:6px; border:1px solid var(--border-color);">
+                        <option value="date">Tarihe Göre Grupla</option>
+                        <option value="type">Arıza Türüne Göre Grupla</option>
+                        <option value="none">Düz Liste (Gruplama Yok)</option>
+                    </select>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-eski-date" onchange="previewOpSettings()" checked> Tarih ve Saat Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-eski-shift" onchange="previewOpSettings()" checked> Vardiya Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-eski-reporter" onchange="previewOpSettings()" checked> Bildiren Kişi Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-eski-assignee" onchange="previewOpSettings()" checked> Görevli (Atanan) Göster</label>
+                    <label style="color:white; display:flex; align-items:center; gap:8px; font-size:0.9rem;"><input type="checkbox" id="op-set-eski-desc" onchange="previewOpSettings()" checked> Açıklama Göster</label>
+                </div>
+            </div>
+
+            <p style="font-size: 0.8rem; color: #fbbf24; margin-top: 15px; text-align: center;">Değişiklikleri anında arkada görebilirsiniz. Çıkmadan önce Kaydet'e basın.</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button onclick="closeOpViewSettingsModal(true)" style="flex: 1; padding: 12px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 KAYDET</button>
+                <button onclick="closeOpViewSettingsModal(false)" style="flex: 1; padding: 12px; background: transparent; color: white; border: 1px solid var(--text-muted); border-radius: 8px; font-weight: bold; cursor: pointer;">İptal</button>
+            </div>
+        </div>
+    </div>
+
     <div class="header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; position: relative; min-height: 60px;">
         <!-- SOL KISIM: Menü İkonu ve Kullanıcı Bilgisi -->
         <div style="display: flex; align-items: center; gap: 15px; z-index: 1000;">
             <button id="main-menu-btn" onclick="event.stopPropagation(); const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 5px; box-shadow: none;">
-                ☰
+                ⚙️
             </button>
             <div style="display: flex; align-items: baseline; gap: 8px;">
                 <p id="user-info" style="margin:0; color: var(--text-muted); font-size: 1.1rem; font-weight: bold;">Lütfen PIN Girin</p>
@@ -149,7 +240,7 @@
             📷 Manuel QR Okut
         </button>
         <button id="btn-admin-op-settings" onclick="document.getElementById('settings-menu').style.display='none'; openOpListModal();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #f43f5e, #e11d48); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(225,29,72,0.2);">
-            👑 Op Ayarları
+            ⚙️ Op Ayarları
         </button>
         <button id="btn-admin-report" onclick="document.getElementById('settings-menu').style.display='none'; openWeeklyReportModal();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(139,92,246,0.2);">
             📊 Haftalık Rapor
@@ -157,11 +248,14 @@
                 <button id="btn-admin-export" onclick="document.getElementById('settings-menu').style.display='none'; exportAndCleanClosedFaults();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(239,68,68,0.2); margin-bottom: 2px;">
             🧹 Şimdi Aktar ve Sil
         </button>
-        <button id="btn-admin-fetch" onclick="document.getElementById('settings-menu').style.display='none'; fetchFromExcel();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #0f766e, #0d9488); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(15,118,110,0.2); margin-bottom: 2px;">
-            🔄 Excel'den Verileri Çek
+                <button id="btn-admin-fetch" onclick="document.getElementById('settings-menu').style.display='none'; fetchFromExcel();" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #0f766e, #0d9488); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(15,118,110,0.2); margin-bottom: 2px;">
+            📥 Excel'den Verileri Çek
         </button>
         <button id="btn-add-op-menu" onclick="document.getElementById('settings-menu').style.display='none'; openOpEditModal(-1);" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(59,130,246,0.2);">
             ➕ Yeni Operatör Ekle
+        </button>
+        <button onclick="document.getElementById('settings-menu').style.display='none'; openOpViewSettingsModal();" style="width: 100%; padding: 10px; background: rgba(14, 165, 233, 0.2); color: #7dd3fc; border: 1px solid rgba(14, 165, 233, 0.4); border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+            👁️‍🗨️ Op Veri Gösterge Ayarı
         </button>
         <button onclick="document.getElementById('settings-menu').style.display='none'; openThemeModal();" style="width: 100%; padding: 10px; background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; display:flex; align-items: center; gap: 8px; margin-bottom: 2px;">
             🎨 Tema Ayarları
@@ -208,7 +302,7 @@
         <!-- BENİM ESKİ GÖREVLERİM (BUGÜNDEN ÖNCEKİLER) -->
         <div id="my-tasks-section" style="display:none; margin-top: 2rem; background: rgba(245, 158, 11, 0.1); padding: 1rem; border-radius: 8px; border: 1px solid var(--warning);">
             <h3 id="my-tasks-title" style="color: var(--warning); margin: 0 0 1rem 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                ⭐ Önceki Günlerden Üzerimdeki Görevler
+                ⏳ Önceki Günlerden Üzerimdeki Görevler
             </h3>
             <div class="table-container" style="border-color: rgba(245, 158, 11, 0.3);">
                 <table class="faults-table">
@@ -228,7 +322,7 @@
             </div>
         </div>
 
-        <h3 style="color: var(--text-muted); margin-top: 2rem; margin-bottom: 0.5rem; font-size: 1.1rem;">⏳ Önceki Günlerden Bekleyenler</h3>
+        <h3 style="color: var(--text-muted); margin-top: 2rem; margin-bottom: 0.5rem; font-size: 1.1rem;">🕰️ Önceki Günlerden Bekleyenler</h3>
         <div class="table-container">
             <table class="faults-table">
                 <thead>
@@ -262,7 +356,7 @@
     <!-- BİRDEN FAZLA VEYA TEK ARIZA SEÇİM MODALI -->
     <div id="fault-selection-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center;">
         <div class="modal-content" style="max-width: 500px;">
-            <h3 class="modal-title" style="color: #f59e0b;">⚠️ Makinedeki Açık Arızalar</h3>
+            <h3 class="modal-title" style="color: #f59e0b;">📋 Makinedeki Açık Arızalar</h3>
             <h4 id="fault-selection-machine-name" style="color: white; text-align: center; margin-bottom: 5px; font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px;">🏭 Makine Adı</h4>
             <p style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 1rem; text-align: center;">Lütfen yapmak istediğiniz işlemi seçin:</p>
             
@@ -288,10 +382,10 @@
                 <label style="color: var(--primary); font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; margin-bottom: 10px; display: block;">Durum (İşlemin Sonucu)</label>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <label class="radio-label"><input type="radio" name="faultStatus" value="Kapalı" checked> ✅ Arızayı Kapat (Çözüldü)</label>
-                    <label class="radio-label"><input type="radio" name="faultStatus" value="Parça Bekliyor"> ⚙️ Yedek Parça Bekliyor</label>
-                    <label class="radio-label"><input type="radio" name="faultStatus" value="Devredildi"> ⏳ Vardiya Bitti / Devredildi</label>
-                    <label class="radio-label"><input type="radio" name="faultStatus" value="Dış Servis Bekliyor"> 🛠️ Dış Servis Bekliyor</label>
-                    <label class="radio-label"><input type="radio" name="faultStatus" value="Geçici Çözüm"> ⚠️ Geçici Olarak Çalıştırıldı</label>
+                    <label class="radio-label"><input type="radio" name="faultStatus" value="Parça Bekliyor"> 📦 Yedek Parça Bekliyor</label>
+                    <label class="radio-label"><input type="radio" name="faultStatus" value="Devredildi"> 🔄 Vardiya Bitti / Devredildi</label>
+                    <label class="radio-label"><input type="radio" name="faultStatus" value="Dış Servis Bekliyor"> 🚐 Dış Servis Bekliyor</label>
+                    <label class="radio-label"><input type="radio" name="faultStatus" value="Geçici Çözüm"> 🩹 Geçici Olarak Çalıştırıldı</label>
                 </div>
             </div>
 
@@ -460,11 +554,11 @@
             <div class="form-group">
                 <label>Arıza Giriş İzni (QR Zorunluluğu)</label>
                 <select id="op-edit-qr" class="form-control" style="background-color: #f1f5f9; cursor: pointer;">
-                    <option value="0">🔒 Sadece QR Kod ile Girebilir (Zorunlu)</option>
-                    <option value="1">🔓 1 Saat Boyunca Tıklayarak Girebilir</option>
-                    <option value="3">🔓 3 Saat Boyunca Tıklayarak Girebilir</option>
-                    <option value="24">🔓 1 Gün Boyunca Tıklayarak Girebilir</option>
-                    <option value="-1">🔓 Sürekli Tıklayarak Girebilir (Limitsiz)</option>
+                    <option value="0">📱 Sadece QR Kod ile Girebilir (Zorunlu)</option>
+                    <option value="1">⏱️ 1 Saat Boyunca Tıklayarak Girebilir</option>
+                    <option value="3">⏱️ 3 Saat Boyunca Tıklayarak Girebilir</option>
+                    <option value="24">⏱️ 1 Gün Boyunca Tıklayarak Girebilir</option>
+                    <option value="-1">♾️ Sürekli Tıklayarak Girebilir (Limitsiz)</option>
                 </select>
                 <small style="color: var(--text-muted); display: block; margin-top: 5px;">Seçilen süre boyunca operatör uzaktan arızalara tıklayabilir.</small>
             </div>
@@ -486,7 +580,7 @@
     </div>
 
     <!-- UYGULAMA MANTIĞI -->
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=1781087559,50297"></script>
 <!-- HAFTALIK ÇALIŞMA RAPORU MODALI -->
     <div id="weekly-report-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 10000;">
         <div class="modal-content" style="max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; background: white; color: black;">
@@ -519,7 +613,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <button type="button" onclick="document.getElementById('weekly-report-modal').style.display='none'" style="padding: 12px 24px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1; margin-right: 10px;">Kapat</button>
                     <button type="button" onclick="syncWeeklyStatsFromArizalar()" style="padding: 12px 24px; background: #eab308; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1; margin-right: 10px;">🔄 Bugünün Verilerini Senkronize Et</button>
-                    <button type="button" onclick="exportReportToPDF()" style="padding: 12px 24px; background: #e74c3c; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1;">📥 PDF Olarak İndir</button>
+                    <button type="button" onclick="exportReportToPDF()" style="padding: 12px 24px; background: #e74c3c; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; flex: 1;">📄 PDF Olarak İndir</button>
                 </div>
             </div>
         </div>
@@ -532,9 +626,3 @@
     <script src="weekly_report.js?v=2"></script>
 </body>
 </html>
-
-
-
-
-
-

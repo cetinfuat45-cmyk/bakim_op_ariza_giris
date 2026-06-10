@@ -1,4 +1,4 @@
-// FIREBASE BAĞLANTISI (Sizin orijinal projenizden kopyalandı)
+﻿// FIREBASE BAĞLANTISI (Sizin orijinal projenizden kopyalandı)
 const firebaseConfig = {
     apiKey: "AIzaSyAEqLYUevIJCcLrJa-05MXx5ik-QFouq9o",
     authDomain: "arizabildirim-89dfa.firebaseapp.com",
@@ -493,8 +493,24 @@ function handleFaultClick(fault) {
     }
 
     if (isAdmin || isExempt) {
-        // Kullanıcının isteği: Karta tıklandığında tüm makinenin arızaları değil, SADECE o kartın arızası açılsın
-        openFaultSelectionModal([fault]);
+        // Admin veya muaf ise, tıkladığı arızanın ait olduğu makinedeki TÜM AÇIK arızaları bulalım
+        if (fault && fault.machine) {
+            const dbMachine = fault.machine.trim().toLocaleUpperCase('tr-TR');
+            const matchedFaults = currentOpenFaults.filter(f => {
+                if (!f.machine) return false;
+                return f.machine.trim().toLocaleUpperCase('tr-TR') === dbMachine;
+            });
+
+            // Arıza varsa daima seçim ekranını aç (tek arıza olsa bile 'Yardımcı Ol' butonunu göstermek için)
+            if (matchedFaults.length >= 1) {
+                openFaultSelectionModal(matchedFaults);
+            } else {
+                openInterventionForm(fault);
+            }
+        } else {
+            // Makine adı yoksa mecburen tekli arıza olarak listele
+            openFaultSelectionModal([fault]);
+        }
     } else {
         // Normal teknisyense ve muafiyeti yoksa QR okutmaya zorla
         startQROnlyCamera();
@@ -687,39 +703,7 @@ function fetchOpenFaults() {
             let myTaskCount = 0;
             
             let dateGroups = {}; // Tarihe ve ardından türe göre gruplamak için
-            let typeGroups = {}; // Sadece türe göre gruplamak için
-            let flatOlderFaults = []; // Gruplamasız liste
 
-            // AYARLARI OKU
-            const showGuncelDate = document.getElementById('op-set-guncel-date') ? document.getElementById('op-set-guncel-date').checked : true;
-            const showGuncelShift = document.getElementById('op-set-guncel-shift') ? document.getElementById('op-set-guncel-shift').checked : true;
-            const showGuncelReporter = document.getElementById('op-set-guncel-reporter') ? document.getElementById('op-set-guncel-reporter').checked : true;
-            const showGuncelAssignee = document.getElementById('op-set-guncel-assignee') ? document.getElementById('op-set-guncel-assignee').checked : true;
-            const showGuncelDesc = document.getElementById('op-set-guncel-desc') ? document.getElementById('op-set-guncel-desc').checked : true;
-
-            const showAtananDate = document.getElementById('op-set-atanan-date') ? document.getElementById('op-set-atanan-date').checked : true;
-            const showAtananShift = document.getElementById('op-set-atanan-shift') ? document.getElementById('op-set-atanan-shift').checked : true;
-            const showAtananReporter = document.getElementById('op-set-atanan-reporter') ? document.getElementById('op-set-atanan-reporter').checked : true;
-            const showAtananAssignee = document.getElementById('op-set-atanan-assignee') ? document.getElementById('op-set-atanan-assignee').checked : true;
-            const showAtananDesc = document.getElementById('op-set-atanan-desc') ? document.getElementById('op-set-atanan-desc').checked : true;
-
-            const showEskiDate = document.getElementById('op-set-eski-date') ? document.getElementById('op-set-eski-date').checked : true;
-            const showEskiShift = document.getElementById('op-set-eski-shift') ? document.getElementById('op-set-eski-shift').checked : true;
-            const showEskiReporter = document.getElementById('op-set-eski-reporter') ? document.getElementById('op-set-eski-reporter').checked : true;
-            const showEskiAssignee = document.getElementById('op-set-eski-assignee') ? document.getElementById('op-set-eski-assignee').checked : true;
-            const showEskiDesc = document.getElementById('op-set-eski-desc') ? document.getElementById('op-set-eski-desc').checked : true;
-            const eskiGroupType = document.getElementById('op-set-eski-group') ? document.getElementById('op-set-eski-group').value : 'date';
-            
-            const guncelType = document.getElementById('op-set-guncel-type') ? document.getElementById('op-set-guncel-type').value : 'card';
-            const atananType = document.getElementById('op-set-atanan-type') ? document.getElementById('op-set-atanan-type').value : 'row';
-            const eskiType = document.getElementById('op-set-eski-type') ? document.getElementById('op-set-eski-type').value : 'row';
-
-            let guncelFaults = [];
-            let myTaskFaults = [];
-
-            // TABLO BAŞLIKLARINI DİNAMİK GÜNCELLE
-            // Eski kullanım iptal edildi, tablolar dinamik oluşturuluyor.
-            
             faultDocs.forEach(fault => {
                 const dateObj = parseFaultDate(fault.createdAt);
                 const isToday = dateObj && 
@@ -791,226 +775,81 @@ function fetchOpenFaults() {
                     helpersHtml = `<p class="fault-details" style="color:${textColor}; margin-top: 4px;"><strong>🤝 Yardımcılar:</strong> ${fault.helpers.join(', ')}</p>`;
                 }
                 
-                const actualReporter = fault.reporter || fault.userName || fault.kullanici || fault.name || fault.bildiren || "Bilinmiyor";
-                
-                let reporterHtml = `<p class="fault-details" style="color:${textColor}; margin-top: 4px;"><strong>👤 Bildiren:</strong> ${actualReporter}</p>`;
-                
                 let assignedHtml = '';
                 if (fault.assignedTo) {
                     assignedHtml = `<p class="fault-details" style="color:var(--warning); font-weight:bold; margin-top: 4px;">🛠️ Görevli: ${fault.assignedTo}</p>`;
                 }
 
-                let itemObj = { fault, dateStr, cardBg, borderColor, textColor, mutedColor, isSolid, statusLabelHtml, helpersHtml, reporterHtml, assignedHtml };
+                // Ortak Kart HTML'si
+                const cardHtml = `
+                    <div class="fault-header">
+                        <h3 class="machine-name" style="color:${textColor};">⚙️ ${fault.machine || "Bilinmeyen Makine"}</h3>
+                        <span class="fault-date" style="color:${mutedColor};">${dateStr}</span>
+                    </div>
+                    <p class="fault-details" style="color:${textColor};"><strong>Vardiya:</strong> ${fault.shift || "-"}</p>
+                    <p class="fault-details" style="color:${textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${fault.jobType || "-"}</span></p>
+                    <p class="fault-details" style="color:${textColor};"><strong>Açıklama:</strong> ${fault.description || "Açıklama yok"}</p>
+                    ${assignedHtml}
+                    ${helpersHtml}
+                    ${statusLabelHtml}
+                `;
 
                 if (isCard) {
                     todayCount++;
-                    guncelFaults.push(itemObj);
+                    const card = document.createElement('div');
+                    card.className = 'fault-card';
+                    card.style.backgroundColor = cardBg;
+                    if (!isSolid) card.style.borderLeftColor = borderColor;
+                    if (isMyTask) card.style.border = `3px solid var(--text-main)`; 
+                    card.onclick = () => handleFaultClick(fault);
+                    card.innerHTML = cardHtml;
+                    todayContainer.appendChild(card);
                 } else {
                     olderCount++;
+                    // Eski arızaları ÖNCE TARİHE SONRA TÜRÜNE göre grupla
+                    const dateObj = parseFaultDate(fault.createdAt);
                     const dateKey = dateObj ? dateObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' }) : (fault.createdAt ? fault.createdAt.substring(0, 10) : "Belirsiz Tarih");
                     const typeKey = fault.jobType ? fault.jobType.toLocaleUpperCase('tr-TR') : "DİĞER / BELİRTİLMEYEN TÜR";
                     
-                    // Eski arızaları Ayara göre kaydet
-                    flatOlderFaults.push(itemObj);
-
                     if (!dateGroups[dateKey]) dateGroups[dateKey] = {};
                     if (!dateGroups[dateKey][typeKey]) dateGroups[dateKey][typeKey] = [];
-                    dateGroups[dateKey][typeKey].push(itemObj);
+                    
+                    dateGroups[dateKey][typeKey].push(fault);
 
-                    if (!typeGroups[typeKey]) typeGroups[typeKey] = [];
-                    typeGroups[typeKey].push(itemObj);
-
-                    // EĞER ATANAN KİŞİ BEN İSEM
+                    // EĞER ATANAN KİŞİ BEN İSEM, AYNI ZAMANDA "BENİ BEKLEYENLER" TABLOSUNDA DA GÖSTER
                     if (isMyTask) {
                         myTaskCount++;
-                        myTaskFaults.push(itemObj);
+                        myTasksSection.style.display = 'block';
+                        
+                        const shortDateTime = dateObj ? dateObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : "-";
+
+                        const tr = document.createElement('tr');
+                        tr.style.backgroundColor = cardBg;
+                        tr.style.color = textColor;
+                        tr.style.borderLeft = `4px solid ${isSolid ? textColor : borderColor}`;
+                        
+                        tr.onclick = () => handleFaultClick(fault);
+                        tr.innerHTML = `
+                            <td data-label="Tarih" style="color: ${textColor}; font-weight: bold;">${shortDateTime}</td>
+                            <td data-label="Vardiya" class="truncate-text" style="color: ${mutedColor};">${fault.shift || "-"}</td>
+                            <td data-label="Makine" class="truncate-text" style="color: ${textColor};"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
+                            <td data-label="Tür" class="truncate-text" style="color: ${textColor}; font-weight: bold;">${fault.jobType || "-"}</td>
+                            <td data-label="Açıklama" class="truncate-text" style="color: ${textColor};">${fault.description || "-"}</td>
+                        `;
+                        myTasksTbody.appendChild(tr);
                     }
                 }
             });
 
-            // ----------------------------------------------------
-            // 1. GÜNCEL ARIZALARI (TODAY) EKRANA BAS
-            // ----------------------------------------------------
-            todayContainer.innerHTML = '';
-            if (todayCount === 0) {
-                todayContainer.innerHTML = '<p style="color:var(--text-muted); font-size:0.9rem;">Bugün açılmış acil bir arıza yok.</p>';
-            } else if (guncelType === 'row') {
-                let tableHtml = `
-                    <div class="table-container" style="border-color: rgba(239, 68, 68, 0.3);">
-                        <table class="faults-table">
-                            <thead>
-                                <tr>
-                                    ${showGuncelDate ? '<th style="width: 15%;">Tarih</th>' : ''}
-                                    ${showGuncelShift ? '<th style="width: 15%;">Vardiya</th>' : ''}
-                                    <th style="width: 25%;">Makine</th>
-                                    ${showGuncelReporter ? '<th style="width: 15%;">Bildiren</th>' : ''}
-                                    ${showGuncelAssignee ? '<th style="width: 15%;">Görevli</th>' : ''}
-                                    ${showGuncelDesc ? '<th style="width: 20%;">Açıklama</th>' : ''}
-                                </tr>
-                            </thead>
-                            <tbody id="dynamic-guncel-tbody"></tbody>
-                        </table>
-                    </div>
-                `;
-                todayContainer.innerHTML = tableHtml;
-                const gTbody = document.getElementById('dynamic-guncel-tbody');
-                
-                guncelFaults.forEach(item => {
-                    const tr = document.createElement('tr');
-                    tr.style.backgroundColor = item.cardBg;
-                    tr.style.color = item.textColor;
-                    tr.style.borderLeft = `4px solid ${item.isSolid ? item.textColor : item.borderColor}`;
-                    tr.onclick = () => handleFaultClick(item.fault);
-                    
-                    let rowHtml = '';
-                    if(showGuncelDate) rowHtml += `<td data-label="Tarih" style="color: ${item.textColor}; font-weight: bold;">${item.dateStr}</td>`;
-                    if(showGuncelShift) rowHtml += `<td data-label="Vardiya" class="truncate-text" style="color: ${item.mutedColor};">${item.fault.shift || "-"}</td>`;
-                    rowHtml += `<td data-label="Makine" class="truncate-text" style="color: ${item.textColor};"><strong>${item.fault.machine || "Bilinmiyor"}</strong></td>`;
-                    if(showGuncelReporter) rowHtml += `<td data-label="Bildiren" class="truncate-text" style="color: ${item.textColor};">${item.fault.reporter || item.fault.userName || item.fault.kullanici || item.fault.name || item.fault.bildiren || "Bilinmiyor"}</td>`;
-                    if(showGuncelAssignee) rowHtml += `<td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${item.fault.assignedTo || "-"}</td>`;
-                    if(showGuncelDesc) rowHtml += `<td data-label="Açıklama" class="truncate-text" style="color: ${item.textColor};">${item.fault.description || "-"}</td>`;
-                    
-                    tr.innerHTML = rowHtml;
-                    gTbody.appendChild(tr);
-                });
-            } else {
-                // KART GÖRÜNÜMÜ
-                guncelFaults.forEach(item => {
-                    const cardHtml = `
-                        <div class="fault-header">
-                            <h3 class="machine-name" style="color:${item.textColor};">⚙️ ${item.fault.machine || "Bilinmeyen Makine"}</h3>
-                            ${showGuncelDate ? `<span class="fault-date" style="color:${item.mutedColor};">${item.dateStr}</span>` : ''}
-                        </div>
-                        ${showGuncelShift ? `<p class="fault-details" style="color:${item.textColor};"><strong>Vardiya:</strong> ${item.fault.shift || "-"}</p>` : ''}
-                        <p class="fault-details" style="color:${item.textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${item.fault.jobType || "-"}</span></p>
-                        ${showGuncelDesc ? `<p class="fault-details" style="color:${item.textColor};"><strong>Açıklama:</strong> ${item.fault.description || "Açıklama yok"}</p>` : ''}
-                        ${showGuncelReporter ? item.reporterHtml : ''}
-                        ${showGuncelAssignee ? item.assignedHtml : ''}
-                        ${item.helpersHtml}
-                        ${item.statusLabelHtml}
-                    `;
-                    const card = document.createElement('div');
-                    card.className = 'fault-card';
-                    card.style.backgroundColor = item.cardBg;
-                    if (!item.isSolid) card.style.borderLeftColor = item.borderColor;
-                    if (loggedInOperator && item.fault.assignedTo === loggedInOperator.name) card.style.border = `3px solid var(--text-main)`; 
-                    card.onclick = () => handleFaultClick(item.fault);
-                    card.innerHTML = cardHtml;
-                    todayContainer.appendChild(card);
-                });
-            }
+            // Gruplanmış eski arızaları ekrana bas
+            for (const [dateKey, typesObj] of Object.entries(dateGroups)) {
+                // Ana Tarih Başlığı
+                const dateHeaderTr = document.createElement('tr');
+                dateHeaderTr.innerHTML = `<td colspan="5" style="background: rgba(59, 130, 246, 0.4); color: white; font-weight: bold; text-align: center; padding: 0.6rem; font-size: 1.15rem; letter-spacing: 1px; border-bottom: 2px solid var(--primary);">📅 ${dateKey}</td>`;
+                olderTbody.appendChild(dateHeaderTr);
 
-            // ----------------------------------------------------
-            // 2. ATANANLAR (MY TASKS) EKRANA BAS
-            // ----------------------------------------------------
-            let myTasksContent = document.getElementById('my-tasks-content');
-            if (!myTasksContent) {
-                myTasksContent = document.createElement('div');
-                myTasksContent.id = 'my-tasks-content';
-                document.getElementById('my-tasks-title').after(myTasksContent);
-                const tableCont = document.querySelector('#my-tasks-tbody').closest('.table-container');
-                if (tableCont) tableCont.style.display = 'none'; // Eskisini gizle
-            }
-            
-            myTasksContent.innerHTML = '';
-            if (myTaskCount > 0) {
-                myTasksSection.style.display = 'block';
-                if (atananType === 'row') {
-                    let tableHtml = `
-                        <div class="table-container" style="border-color: rgba(245, 158, 11, 0.3);">
-                            <table class="faults-table">
-                                <thead>
-                                    <tr>
-                                        ${showAtananDate ? '<th style="width: 20%;">Tarih</th>' : ''}
-                                        ${showAtananShift ? '<th style="width: 15%;">Vardiya</th>' : ''}
-                                        <th style="width: 25%;">Makine</th>
-                                        <th style="width: 15%;">Tür</th>
-                                        ${showAtananReporter ? '<th style="width: 15%;">Bildiren</th>' : ''}
-                                        ${showAtananDesc ? '<th style="width: 25%;">Açıklama</th>' : ''}
-                                    </tr>
-                                </thead>
-                                <tbody id="dynamic-atanan-tbody"></tbody>
-                            </table>
-                        </div>
-                    `;
-                    myTasksContent.innerHTML = tableHtml;
-                    const aTbody = document.getElementById('dynamic-atanan-tbody');
-                    
-                    myTaskFaults.forEach(item => {
-                        const tr = document.createElement('tr');
-                        tr.style.backgroundColor = item.cardBg;
-                        tr.style.color = item.textColor;
-                        tr.style.borderLeft = `4px solid ${item.isSolid ? item.textColor : item.borderColor}`;
-                        tr.onclick = () => handleFaultClick(item.fault);
-                        
-                        let rowHtml = '';
-                        const dObj = parseFaultDate(item.fault.createdAt);
-                        const shortDateTime = dObj ? dObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : "-";
-                        
-                        if(showAtananDate) rowHtml += `<td data-label="Tarih" style="color: ${item.textColor}; font-weight: bold;">${shortDateTime}</td>`;
-                        if(showAtananShift) rowHtml += `<td data-label="Vardiya" class="truncate-text" style="color: ${item.mutedColor};">${item.fault.shift || "-"}</td>`;
-                        rowHtml += `<td data-label="Makine" class="truncate-text" style="color: ${item.textColor};"><strong>${item.fault.machine || "Bilinmiyor"}</strong></td>`;
-                        rowHtml += `<td data-label="Tür" class="truncate-text" style="color: ${item.textColor}; font-weight: bold;">${item.fault.jobType || "-"}</td>`;
-                        if(showAtananReporter) rowHtml += `<td data-label="Bildiren" class="truncate-text" style="color: ${item.textColor};">${item.fault.reporter || item.fault.userName || item.fault.kullanici || item.fault.name || item.fault.bildiren || "Bilinmiyor"}</td>`;
-                        if(showAtananDesc) rowHtml += `<td data-label="Açıklama" class="truncate-text" style="color: ${item.textColor};">${item.fault.description || "-"}</td>`;
-                        
-                        tr.innerHTML = rowHtml;
-                        aTbody.appendChild(tr);
-                    });
-                } else {
-                    // KART GÖRÜNÜMÜ
-                    const cardsDiv = document.createElement('div');
-                    cardsDiv.style.display = 'flex';
-                    cardsDiv.style.flexDirection = 'column';
-                    cardsDiv.style.gap = '1rem';
-                    
-                    myTaskFaults.forEach(item => {
-                        const cardHtml = `
-                            <div class="fault-header">
-                                <h3 class="machine-name" style="color:${item.textColor};">⚙️ ${item.fault.machine || "Bilinmeyen Makine"}</h3>
-                                ${showAtananDate ? `<span class="fault-date" style="color:${item.mutedColor};">${item.dateStr}</span>` : ''}
-                            </div>
-                            ${showAtananShift ? `<p class="fault-details" style="color:${item.textColor};"><strong>Vardiya:</strong> ${item.fault.shift || "-"}</p>` : ''}
-                            <p class="fault-details" style="color:${item.textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${item.fault.jobType || "-"}</span></p>
-                            ${showAtananDesc ? `<p class="fault-details" style="color:${item.textColor};"><strong>Açıklama:</strong> ${item.fault.description || "Açıklama yok"}</p>` : ''}
-                            ${showAtananReporter ? item.reporterHtml : ''}
-                            ${item.helpersHtml}
-                            ${item.statusLabelHtml}
-                        `;
-                        const card = document.createElement('div');
-                        card.className = 'fault-card';
-                        card.style.backgroundColor = item.cardBg;
-                        card.style.borderLeftColor = item.borderColor;
-                        card.onclick = () => handleFaultClick(item.fault);
-                        card.innerHTML = cardHtml;
-                        cardsDiv.appendChild(card);
-                    });
-                    myTasksContent.appendChild(cardsDiv);
-                }
-            } else {
-                myTasksSection.style.display = 'none';
-            }
-
-            // ----------------------------------------------------
-            // 3. ESKİ ARIZALAR (OLDER) EKRANA BAS
-            // ----------------------------------------------------
-            let olderContent = document.getElementById('older-faults-content');
-            if (!olderContent) {
-                olderContent = document.createElement('div');
-                olderContent.id = 'older-faults-content';
-                const tableCont = document.querySelector('#older-faults-tbody').closest('.table-container');
-                if (tableCont) {
-                    tableCont.parentNode.insertBefore(olderContent, tableCont);
-                    tableCont.style.display = 'none'; // Eskisini gizle
-                }
-            }
-            
-            olderContent.innerHTML = '';
-            
-            if (olderCount === 0) {
-                olderContent.innerHTML = '<div style="text-align:center; padding:1rem;"><p style="color:var(--text-muted);">Önceki günlerden kalan arıza yok.</p></div>';
-            } else {
-                const getBgColor = (typeKey) => {
+                for (const [typeKey, groupFaults] of Object.entries(typesObj)) {
+                    // Grubun başlık rengini belirle
                     let bg = "rgba(59, 130, 246, 0.1)";
                     let txtColor = "var(--primary)";
                     const t = typeKey.toLocaleLowerCase('tr-TR');
@@ -1019,133 +858,39 @@ function fetchOpenFaults() {
                     else if (t.includes('iş güvenliği') || t.includes('is guvenligi')) { bg = "rgba(255, 0, 0, 0.1)"; txtColor = "#FF0000"; }
                     else if (t.includes('planlı bakım') || t.includes('planli bakim')) { bg = "rgba(255, 165, 0, 0.1)"; txtColor = "#FFA500"; }
                     else if (t.includes('tekrar eden')) { bg = "rgba(255, 0, 255, 0.1)"; txtColor = "#FF00FF"; }
-                    return {bg, txtColor};
-                };
 
-                let oTbody = null;
-                let cardsDiv = null;
+                    // Alt Grup Başlığı (Örn: MEKANİK ARIZALAR)
+                    const typeHeaderTr = document.createElement('tr');
+                    typeHeaderTr.innerHTML = `<td colspan="5" style="background: ${bg}; color: ${txtColor}; font-weight: bold; text-align: left; padding: 0.4rem 1rem; border-left: 4px solid ${txtColor};">⚙️ ${typeKey}</td>`;
+                    olderTbody.appendChild(typeHeaderTr);
 
-                if (eskiType === 'row') {
-                    let tableHtml = `
-                        <div class="table-container">
-                            <table class="faults-table">
-                                <thead>
-                                    <tr>
-                                        ${showEskiDate ? '<th style="width: 12%;">Tarih/Saat</th>' : ''}
-                                        ${showEskiShift ? '<th style="width: 15%;">Vardiya</th>' : ''}
-                                        <th style="width: 28%;">Makine</th>
-                                        ${showEskiReporter ? '<th style="width: 15%;">Bildiren</th>' : ''}
-                                        ${showEskiAssignee ? '<th style="width: 20%;">Görevli</th>' : ''}
-                                        ${showEskiDesc ? '<th style="width: 25%;">Açıklama</th>' : ''}
-                                    </tr>
-                                </thead>
-                                <tbody id="dynamic-older-tbody"></tbody>
-                            </table>
-                        </div>
-                    `;
-                    olderContent.innerHTML = tableHtml;
-                    oTbody = document.getElementById('dynamic-older-tbody');
-                } else {
-                    cardsDiv = document.createElement('div');
-                    cardsDiv.style.display = 'flex';
-                    cardsDiv.style.flexDirection = 'column';
-                    cardsDiv.style.gap = '1rem';
-                    olderContent.appendChild(cardsDiv);
-                }
-
-                const renderItem = (item, bg, txtColor) => {
-                    const dObj = parseFaultDate(item.fault.createdAt);
-                    const timeStr = dObj ? dObj.toLocaleString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : "-";
-                    const dateStrShort = dObj ? dObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : "-";
-
-                    if (eskiType === 'row') {
+                    // Gruptaki arızaları satır olarak ekle
+                    groupFaults.forEach(fault => {
+                        const dateObj = parseFaultDate(fault.createdAt);
+                        const timeStr = dateObj ? dateObj.toLocaleString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : "-";
+                        const assignedPerson = fault.assignedTo || "Atanmadı";
+                        
                         const tr = document.createElement('tr');
                         tr.style.backgroundColor = bg; 
                         tr.style.borderLeft = `4px solid ${txtColor}`;
-                        tr.onclick = () => handleFaultClick(item.fault);
-                        
-                        let rowHtml = '';
-                        if(showEskiDate) rowHtml += `<td data-label="Tarih" style="color: var(--danger); font-weight: bold; text-align: center;">${eskiGroupType === 'none' || eskiGroupType === 'type' ? dateStrShort : timeStr}</td>`;
-                        if(showEskiShift) rowHtml += `<td data-label="Vardiya" class="truncate-text" style="color: var(--text-muted);">${item.fault.shift || "-"}</td>`;
-                        rowHtml += `<td data-label="Makine" class="truncate-text"><strong>${item.fault.machine || "Bilinmiyor"}</strong></td>`;
-                        if(showEskiReporter) rowHtml += `<td data-label="Bildiren" class="truncate-text">${item.fault.reporter || item.fault.userName || item.fault.kullanici || item.fault.name || item.fault.bildiren || "Bilinmiyor"}</td>`;
-                        if(showEskiAssignee) rowHtml += `<td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${item.fault.assignedTo || "Atanmadı"}</td>`;
-                        if(showEskiDesc) rowHtml += `<td data-label="Açıklama" class="truncate-text">${item.fault.description || "-"}</td>`;
-                        
-                        tr.innerHTML = rowHtml;
-                        oTbody.appendChild(tr);
-                    } else {
-                        const cardHtml = `
-                            <div class="fault-header">
-                                <h3 class="machine-name" style="color:${item.textColor};">⚙️ ${item.fault.machine || "Bilinmeyen Makine"}</h3>
-                                ${showEskiDate ? `<span class="fault-date" style="color:${item.mutedColor};">${item.dateStr}</span>` : ''}
-                            </div>
-                            ${showEskiShift ? `<p class="fault-details" style="color:${item.textColor};"><strong>Vardiya:</strong> ${item.fault.shift || "-"}</p>` : ''}
-                            <p class="fault-details" style="color:${item.textColor};"><strong>Tür:</strong> <span style="font-weight:bold;">${item.fault.jobType || "-"}</span></p>
-                            ${showEskiDesc ? `<p class="fault-details" style="color:${item.textColor};"><strong>Açıklama:</strong> ${item.fault.description || "Açıklama yok"}</p>` : ''}
-                            ${showEskiReporter ? item.reporterHtml : ''}
-                            ${showEskiAssignee ? item.assignedHtml : ''}
-                            ${item.helpersHtml}
-                            ${item.statusLabelHtml}
+                        tr.onclick = () => handleFaultClick(fault);
+                        tr.innerHTML = `
+                            <td data-label="Saat" style="color: var(--danger); font-weight: bold; text-align: center;">${timeStr}</td>
+                            <td data-label="Vardiya" class="truncate-text" style="color: var(--text-muted);">${fault.shift || "-"}</td>
+                            <td data-label="Makine" class="truncate-text"><strong>${fault.machine || "Bilinmiyor"}</strong></td>
+                            <td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${assignedPerson}</td>
+                            <td data-label="Açıklama" class="truncate-text">${fault.description || "-"}</td>
                         `;
-                        const card = document.createElement('div');
-                        card.className = 'fault-card';
-                        card.style.backgroundColor = item.cardBg;
-                        card.style.borderLeftColor = txtColor;
-                        card.onclick = () => handleFaultClick(item.fault);
-                        card.innerHTML = cardHtml;
-                        cardsDiv.appendChild(card);
-                    }
-                };
-
-                const renderHeader = (htmlContent) => {
-                    if (eskiType === 'row') {
-                        const headerTr = document.createElement('tr');
-                        headerTr.innerHTML = `<td colspan="5" style="${htmlContent.style}">${htmlContent.text}</td>`;
-                        oTbody.appendChild(headerTr);
-                    } else {
-                        const headerDiv = document.createElement('div');
-                        headerDiv.style.cssText = htmlContent.style + "; margin-top: 10px; border-radius: 4px;";
-                        headerDiv.innerText = htmlContent.text;
-                        cardsDiv.appendChild(headerDiv);
-                    }
-                };
-
-                if (eskiGroupType === 'date') {
-                    for (const [dateKey, typesObj] of Object.entries(dateGroups)) {
-                        renderHeader({
-                            text: `📅 ${dateKey}`,
-                            style: "background: rgba(59, 130, 246, 0.4); color: white; font-weight: bold; text-align: center; padding: 0.6rem; font-size: 1.15rem; letter-spacing: 1px; border-bottom: 2px solid var(--primary);"
-                        });
-
-                        for (const [typeKey, groupFaults] of Object.entries(typesObj)) {
-                            const {bg, txtColor} = getBgColor(typeKey);
-                            renderHeader({
-                                text: `⚙️ ${typeKey}`,
-                                style: `background: ${bg}; color: ${txtColor}; font-weight: bold; text-align: left; padding: 0.4rem 1rem; border-left: 4px solid ${txtColor};`
-                            });
-
-                            groupFaults.forEach(item => renderItem(item, bg, txtColor));
-                        }
-                    }
-                } else if (eskiGroupType === 'type') {
-                    for (const [typeKey, groupFaults] of Object.entries(typeGroups)) {
-                        const {bg, txtColor} = getBgColor(typeKey);
-                        renderHeader({
-                            text: `⚙️ ${typeKey}`,
-                            style: `background: ${bg}; color: ${txtColor}; font-weight: bold; text-align: left; padding: 0.6rem; font-size: 1.15rem; letter-spacing: 1px; border-left: 4px solid ${txtColor}; border-bottom: 2px solid ${txtColor};`
-                        });
-
-                        groupFaults.forEach(item => renderItem(item, bg, txtColor));
-                    }
-                } else {
-                    // none
-                    flatOlderFaults.forEach(item => {
-                        const typeKey = item.fault.jobType ? item.fault.jobType.toLocaleUpperCase('tr-TR') : "DİĞER / BELİRTİLMEYEN TÜR";
-                        const {bg, txtColor} = getBgColor(typeKey);
-                        renderItem(item, bg, txtColor);
+                        olderTbody.appendChild(tr);
                     });
                 }
+            }
+
+            if (todayCount === 0) {
+                todayContainer.innerHTML = '<p style="color:var(--text-muted); font-size:0.9rem;">Bugün açılmış acil bir arıza yok.</p>';
+            }
+            if (olderCount === 0) {
+                olderTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Önceki günlerden kalan arıza yok.</td></tr>';
             }
 
         }, (error) => {
@@ -2831,53 +2576,7 @@ async function updateWeeklyStats(operatorName, durationMin) {
     }
 }
 
-// ----------------------------------------------------
-// GÖRÜNÜM AYARLARI (VIEW SETTINGS)
-// ----------------------------------------------------
-function openOpViewSettingsModal() {
-    document.getElementById('op-view-settings-modal').style.display = 'flex';
-}
 
-function closeOpViewSettingsModal(save) {
-    document.getElementById('op-view-settings-modal').style.display = 'none';
-    if (save) {
-        Swal.fire({
-            icon: 'success',
-            title: 'Ayarlar Kaydedildi',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 1500
-        });
-        fetchOpenFaults();
-    }
-}
-
-function switchViewTab(tabId) {
-    document.getElementById('tab-guncel').style.display = 'none';
-    document.getElementById('tab-atanan').style.display = 'none';
-    document.getElementById('tab-eski').style.display = 'none';
-
-    document.getElementById('btn-tab-guncel').style.background = 'transparent';
-    document.getElementById('btn-tab-guncel').style.color = 'var(--text-muted)';
-    
-    document.getElementById('btn-tab-atanan').style.background = 'transparent';
-    document.getElementById('btn-tab-atanan').style.color = 'var(--text-muted)';
-    
-    document.getElementById('btn-tab-eski').style.background = 'transparent';
-    document.getElementById('btn-tab-eski').style.color = 'var(--text-muted)';
-
-    document.getElementById(tabId).style.display = 'block';
-    
-    const activeBtn = document.getElementById('btn-' + tabId);
-    activeBtn.style.background = 'var(--primary)';
-    activeBtn.style.color = 'white';
-}
-
-function previewOpSettings() {
-    // Sadece fetchOpenFaults'u çağır, böylece DOM hemen güncellenir
-    fetchOpenFaults();
-}
 
 
 
