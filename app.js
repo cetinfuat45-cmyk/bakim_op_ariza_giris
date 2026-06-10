@@ -89,6 +89,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 2. Hafızadaki makine sözlüğünü yükle (QR hızlandırması için)
     loadMachineDictionary();
 
+    // 3. Operatör görünüm ayarlarını localStorage'dan yükle
+    loadOpSettings();
+
     // Menü dışında bir yere tıklanınca menüyü kapat
     document.addEventListener("click", (e) => {
         const menu = document.getElementById('settings-menu');
@@ -1243,8 +1246,14 @@ function onScanSuccess(decodedText) {
             return;
         }
         
-        // Eşleşiyorsa sadece tıklanan o arızayı aç
-        openFaultSelectionModal([expectedFaultForQR]);
+        // Eşleşiyorsa o makinedeki TÜM açık arızaları aç
+        const allMachineFaults = currentOpenFaults.filter(f => {
+            if (!f.machine) return false;
+            const dbMachine = f.machine.trim().toLocaleUpperCase('tr-TR');
+            return expectedMachine === dbMachine;
+        });
+
+        openFaultSelectionModal(allMachineFaults.length > 0 ? allMachineFaults : [expectedFaultForQR]);
         expectedFaultForQR = null; // Sıfırla
         return;
     }
@@ -2892,7 +2901,41 @@ function switchViewTab(tabId) {
     activeBtn.style.color = 'white';
 }
 
+function saveOpSettings() {
+    const config = {};
+    const ids = [
+        'op-set-guncel-type', 'op-set-guncel-date', 'op-set-guncel-shift', 'op-set-guncel-reporter', 'op-set-guncel-assignee', 'op-set-guncel-desc',
+        'op-set-atanan-type', 'op-set-atanan-date', 'op-set-atanan-shift', 'op-set-atanan-reporter', 'op-set-atanan-assignee', 'op-set-atanan-desc',
+        'op-set-eski-type', 'op-set-eski-group', 'op-set-eski-date', 'op-set-eski-shift', 'op-set-eski-reporter', 'op-set-eski-assignee', 'op-set-eski-desc'
+    ];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            config[id] = el.type === 'checkbox' ? el.checked : el.value;
+        }
+    });
+    localStorage.setItem('opSettingsConfig', JSON.stringify(config));
+}
+
+function loadOpSettings() {
+    const saved = localStorage.getItem('opSettingsConfig');
+    if (!saved) return;
+    try {
+        const config = JSON.parse(saved);
+        Object.keys(config).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.type === 'checkbox') el.checked = config[id];
+                else el.value = config[id];
+            }
+        });
+    } catch(e) {
+        console.error("Op Settings parse error:", e);
+    }
+}
+
 function previewOpSettings() {
+    saveOpSettings();
     // Sadece fetchOpenFaults'u çağır, böylece DOM hemen güncellenir
     fetchOpenFaults();
 }
