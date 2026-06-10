@@ -139,6 +139,20 @@
             color: #00FF00 !important;
             text-shadow: 0 0 2px #00FF00;
         }
+        @keyframes heartbeat {
+            0% { transform: scale(1); }
+            14% { transform: scale(1.08); }
+            28% { transform: scale(1); }
+            42% { transform: scale(1.08); }
+            70% { transform: scale(1); }
+            100% { transform: scale(1); }
+        }
+        .heartbeat-text {
+            display: inline-block;
+            animation: heartbeat 1.5s infinite;
+            color: #7FFFD4;
+            font-weight: 800;
+        }
     </style>
 </head>
 <body>
