@@ -800,7 +800,8 @@ function fetchOpenFaults() {
                 
                 let assignedHtml = '';
                 if (fault.assignedTo) {
-                    assignedHtml = `<p class="fault-details" style="color:var(--warning); font-weight:bold; margin-top: 4px;">🛠️ Görevli: ${fault.assignedTo}</p>`;
+                    const isAssigned = fault.assignedTo !== '-' && fault.assignedTo !== 'Atanmadı';
+                    assignedHtml = `<p class="fault-details" style="color:var(--warning); font-weight:bold; margin-top: 4px;">🛠️ Görevli: ${isAssigned ? `<span class="neon-border-green">${fault.assignedTo}</span>` : fault.assignedTo}</p>`;
                 }
 
                 let itemObj = { fault, dateStr, cardBg, borderColor, textColor, mutedColor, isSolid, statusLabelHtml, helpersHtml, reporterHtml, assignedHtml };
@@ -870,7 +871,11 @@ function fetchOpenFaults() {
                     if(showGuncelShift) rowHtml += `<td data-label="Vardiya" class="truncate-text" style="color: ${item.mutedColor};">${item.fault.shift || "-"}</td>`;
                     rowHtml += `<td data-label="Makine" class="truncate-text" style="color: ${item.textColor};"><strong>${item.fault.machine || "Bilinmiyor"}</strong></td>`;
                     if(showGuncelReporter) rowHtml += `<td data-label="Bildiren" class="truncate-text" style="color: ${item.textColor};">${item.fault.reporter || item.fault.userName || item.fault.kullanici || item.fault.name || item.fault.bildiren || "Bilinmiyor"}</td>`;
-                    if(showGuncelAssignee) rowHtml += `<td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${item.fault.assignedTo || "-"}</td>`;
+                    if(showGuncelAssignee) {
+                        const isAssigned = item.fault.assignedTo && item.fault.assignedTo !== '-' && item.fault.assignedTo !== 'Atanmadı';
+                        const val = item.fault.assignedTo || "-";
+                        rowHtml += `<td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${isAssigned ? `<span class="neon-border-green">${val}</span>` : val}</td>`;
+                    }
                     if(showGuncelDesc) rowHtml += `<td data-label="Açıklama" class="truncate-text" style="color: ${item.textColor};">${item.fault.description || "-"}</td>`;
                     
                     tr.innerHTML = rowHtml;
@@ -1072,7 +1077,11 @@ function fetchOpenFaults() {
                         if(showEskiShift) rowHtml += `<td data-label="Vardiya" class="truncate-text" style="color: var(--text-muted);">${item.fault.shift || "-"}</td>`;
                         rowHtml += `<td data-label="Makine" class="truncate-text"><strong>${item.fault.machine || "Bilinmiyor"}</strong></td>`;
                         if(showEskiReporter) rowHtml += `<td data-label="Bildiren" class="truncate-text">${item.fault.reporter || item.fault.userName || item.fault.kullanici || item.fault.name || item.fault.bildiren || "Bilinmiyor"}</td>`;
-                        if(showEskiAssignee) rowHtml += `<td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${item.fault.assignedTo || "Atanmadı"}</td>`;
+                        if(showEskiAssignee) {
+                            const isAssigned = item.fault.assignedTo && item.fault.assignedTo !== '-' && item.fault.assignedTo !== 'Atanmadı';
+                            const val = item.fault.assignedTo || "Atanmadı";
+                            rowHtml += `<td data-label="Görevli" class="truncate-text" style="color: var(--warning); font-weight: bold;">${isAssigned ? `<span class="neon-border-green">${val}</span>` : val}</td>`;
+                        }
                         if(showEskiDesc) rowHtml += `<td data-label="Açıklama" class="truncate-text">${item.fault.description || "-"}</td>`;
                         
                         tr.innerHTML = rowHtml;
@@ -1804,6 +1813,10 @@ function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
     
+    // Menü ikonunu görünür yap
+    const menuBtn = document.getElementById('main-menu-btn');
+    if(menuBtn) menuBtn.style.display = 'block';
+    
     // Tema ayarlarını uygula
     applyThemePrefs();
     
@@ -1906,6 +1919,12 @@ function logout() {
     localStorage.removeItem("loggedInOperator");
     loggedInOperator = null;
     document.getElementById('pinCode').value = '';
+    
+    // Menü ikonunu ve açık menüyü gizle
+    const menuBtn = document.getElementById('main-menu-btn');
+    if(menuBtn) menuBtn.style.display = 'none';
+    const settingsMenu = document.getElementById('settings-menu');
+    if(settingsMenu) settingsMenu.style.display = 'none';
     
     // Temayı varsayılana sıfırla
     resetThemePrefs();

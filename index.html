@@ -121,6 +121,24 @@
             to { transform: translateX(0); opacity: 1; }
         }
             #op-view-settings-modal select option { background-color: #1e293b; color: white; }
+        @keyframes neonBlinkGreen {
+            0%, 100% {
+                box-shadow: 0 0 5px #00FF00, inset 0 0 2px #00FF00;
+                border: 1px solid #00FF00;
+            }
+            50% {
+                box-shadow: 0 0 1px #00FF00, inset 0 0 1px #00FF00;
+                border: 1px solid rgba(0, 255, 0, 0.4);
+            }
+        }
+        .neon-border-green {
+            animation: neonBlinkGreen 1.5s infinite alternate;
+            border-radius: 6px;
+            padding: 3px 6px;
+            display: inline-block;
+            color: #00FF00 !important;
+            text-shadow: 0 0 2px #00FF00;
+        }
     </style>
 </head>
 <body>
@@ -221,7 +239,7 @@
     <div class="header" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; position: relative; min-height: 60px;">
         <!-- SOL KISIM: Menü İkonu ve Kullanıcı Bilgisi -->
         <div style="display: flex; align-items: center; gap: 15px; z-index: 1000;">
-            <button id="main-menu-btn" onclick="event.stopPropagation(); const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 5px; box-shadow: none;">
+            <button id="main-menu-btn" onclick="event.stopPropagation(); const m = document.getElementById('settings-menu'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex';" style="display: none; background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 5px; box-shadow: none;">
                 ⚙️
             </button>
             <div style="display: flex; align-items: baseline; gap: 8px;">
