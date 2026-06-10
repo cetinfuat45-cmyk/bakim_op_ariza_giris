@@ -1056,7 +1056,7 @@ function fetchOpenFaults() {
                 const renderItem = (item, bg, txtColor) => {
                     const dObj = parseFaultDate(item.fault.createdAt);
                     const timeStr = dObj ? dObj.toLocaleString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : "-";
-                    const dateStrShort = dObj ? dObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : "-";
+                    const dateStrShort = dObj ? `${String(dObj.getDate()).padStart(2, '0')}.${String(dObj.getMonth()+1).padStart(2, '0')} ${String(dObj.getHours()).padStart(2, '0')}:${String(dObj.getMinutes()).padStart(2, '0')}` : "-";
 
                     if (eskiType === 'row') {
                         const tr = document.createElement('tr');
@@ -1065,7 +1065,7 @@ function fetchOpenFaults() {
                         tr.onclick = () => handleFaultClick(item.fault);
                         
                         let rowHtml = '';
-                        if(showEskiDate) rowHtml += `<td data-label="Tarih" style="color: var(--danger); font-weight: bold; text-align: center;">${eskiGroupType === 'none' || eskiGroupType === 'type' ? dateStrShort : timeStr}</td>`;
+                        if(showEskiDate) rowHtml += `<td data-label="Tarih" style="color: var(--danger); font-weight: bold; text-align: center;">${dateStrShort}</td>`;
                         if(showEskiShift) rowHtml += `<td data-label="Vardiya" class="truncate-text" style="color: var(--text-muted);">${item.fault.shift || "-"}</td>`;
                         rowHtml += `<td data-label="Makine" class="truncate-text"><strong>${item.fault.machine || "Bilinmiyor"}</strong></td>`;
                         if(showEskiReporter) rowHtml += `<td data-label="Bildiren" class="truncate-text">${item.fault.reporter || item.fault.userName || item.fault.kullanici || item.fault.name || item.fault.bildiren || "Bilinmiyor"}</td>`;
@@ -1298,15 +1298,15 @@ function openFaultSelectionModal(faults) {
         
         // İçerik: Arıza Türü (jobType), Açıklama, Açan Kişi, Tarih
         const jobTypeDisplay = fault.jobType || fault.faultType || "Belirtilmemiş";
-        const typeHtml = `<div style="color: ${txtColor}; font-size: 1rem; margin-bottom: 6px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">🛠️ Tür: ${jobTypeDisplay}</div>`;
-        const descHtml = fault.description ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>📝 Açıklama:</strong> ${fault.description}</div>` : (fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>📝 Açıklama:</strong> ${fault.faultDescription}</div>` : '');
-        const reporterHtml = fault.assignedTo ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;">👤 <strong>Görevli:</strong> ${fault.assignedTo}</div>` : '';
-        const helpersModalHtml = (fault.helpers && fault.helpers.length > 0) ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;">🤝 <strong>Yardımcılar:</strong> ${fault.helpers.join(', ')}</div>` : '';
+        const typeHtml = `<div style="color: ${txtColor}; font-size: 1rem; margin-bottom: 6px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">Tür: ${jobTypeDisplay}</div>`;
+        const descHtml = fault.description ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>Açıklama:</strong> ${fault.description}</div>` : (fault.faultDescription ? `<div style="color: #cbd5e1; font-size: 0.95rem; margin-bottom: 6px;"><strong>Açıklama:</strong> ${fault.faultDescription}</div>` : '');
+        const reporterHtml = fault.assignedTo ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;"><strong>Görevli:</strong> ${fault.assignedTo}</div>` : '';
+        const helpersModalHtml = (fault.helpers && fault.helpers.length > 0) ? `<div style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 4px;"><strong>Yardımcılar:</strong> ${fault.helpers.join(', ')}</div>` : '';
         
         // Tarihi güvenli bir şekilde dönüştür (Invalid Date hatasını önlemek için)
         const dateObj = parseFaultDate(fault.createdAt || fault.faultDate);
         const dateStr = dateObj ? dateObj.toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : (fault.createdAt || fault.faultDate || "Bilinmeyen Tarih");
-        const dateHtml = `<div style="color: #64748b; font-size: 0.8rem; margin-top: 2px;">🗓️ <strong>Tarih:</strong> ${dateStr}</div>`;
+        const dateHtml = `<div style="color: #64748b; font-size: 0.8rem; margin-top: 2px;"><strong>Tarih:</strong> ${dateStr}</div>`;
         
         // --- DINAMIK BUTON MANTIĞI ---
         let actionButtonsHtml = '';
@@ -1314,12 +1314,12 @@ function openFaultSelectionModal(faults) {
         
         // Eğer arıza henüz başlamadıysa ("Açık") VEYA kimse atanmamışsa (Parça bekliyor vb. durumunda atanmış kişi silinir)
         if (currentStatus === "Açık" || !fault.assignedTo) {
-            let startBtnText = "🚀 Çalışmaya Başla";
-            if (currentStatus === "Parça Bekliyor") startBtnText = "📦 Parça Geldi / İşi Devral";
-            else if (currentStatus === "Dış Servis Bekliyor") startBtnText = "🚐 Dış Servis Geldi / İşe Başla";
-            else if (currentStatus !== "Açık") startBtnText = "🚀 İşi Devral (" + currentStatus + ")";
+            let startBtnText = "Çalışmaya Başla";
+            if (currentStatus === "Parça Bekliyor") startBtnText = "Parça Geldi / İşi Devral";
+            else if (currentStatus === "Dış Servis Bekliyor") startBtnText = "Dış Servis Geldi / İşe Başla";
+            else if (currentStatus !== "Açık") startBtnText = "İşi Devral (" + currentStatus + ")";
             else if (currentStatus === "Açık" && fault.assignedTo && fault.assignedTo !== loggedInOperator.name) {
-                startBtnText = `🚀 İşi Devral (Görevli: ${fault.assignedTo})`;
+                startBtnText = `İşi Devral (Görevli: ${fault.assignedTo})`;
             }
 
             actionButtonsHtml = `<button onclick='startWork("${fault.id}")' style="background: var(--primary); color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">${startBtnText}</button>`;
@@ -1327,17 +1327,17 @@ function openFaultSelectionModal(faults) {
             // Arıza aktif durumda (Müdahale Ediliyor)
             if (fault.assignedTo === loggedInOperator.name) {
                 // Ana görevli kendisi
-                actionButtonsHtml = `<button onclick='startMainIntervention("${fault.id}")' style="background: ${badgeColor}; color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">📝 Müdahaleyi Bitir / Güncelle</button>`;
+                actionButtonsHtml = `<button onclick='startMainIntervention("${fault.id}")' style="background: ${badgeColor}; color: #000; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">Müdahaleyi Bitir / Güncelle</button>`;
             } else {
                 // Ana görevli başkası
                 const isHelper = fault.helpers && fault.helpers.includes(loggedInOperator.name);
                 
                 if (isHelper) {
                     // Zaten yardımcı
-                    actionButtonsHtml = `<button onclick='leaveHelper("${fault.id}")' style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 6px 12px; border: 1px solid #ef4444; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">👋 Bakımdan Ayrıl</button>`;
+                    actionButtonsHtml = `<button onclick='leaveHelper("${fault.id}")' style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 6px 12px; border: 1px solid #ef4444; border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">Bakımdan Ayrıl</button>`;
                 } else {
                     // Henüz katılmamış
-                    actionButtonsHtml = `<button onclick='joinAsHelper("${fault.id}")' style="background: rgba(255,255,255,0.1); color: white; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">🤝 Yardımcı Olarak Katıl</button>`;
+                    actionButtonsHtml = `<button onclick='joinAsHelper("${fault.id}")' style="background: rgba(255,255,255,0.1); color: white; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; font-size: 0.85rem; font-weight: bold; cursor: pointer; width: 100%;">Yardımcı Olarak Katıl</button>`;
                 }
             }
         }
@@ -1351,7 +1351,7 @@ function openFaultSelectionModal(faults) {
             });
             adminAssignHtml = `
             <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <label style="color: var(--warning); font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 4px;">👑 Admin: Görevli Ata / Değiştir</label>
+                <label style="color: var(--warning); font-size: 0.85rem; font-weight: bold; display: block; margin-bottom: 4px;">Admin: Görevli Ata / Değiştir</label>
                 <select onchange="assignOperatorByAdmin('${fault.id}', this.value)" style="width: 100%; padding: 8px; border-radius: 4px; background: #334155; color: white; border: 1px solid var(--warning);">
                     ${options}
                 </select>
