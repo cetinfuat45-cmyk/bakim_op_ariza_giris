@@ -497,7 +497,7 @@ function handleFaultClick(fault) {
         openFaultSelectionModal([fault]);
     } else {
         // Normal teknisyense ve muafiyeti yoksa QR okutmaya zorla
-        startQROnlyCamera();
+        startQROnlyCamera(fault);
     }
 }
 
@@ -655,7 +655,7 @@ function fetchOpenFaults() {
                         <h3 style="color:var(--primary); margin:0;">🎉 Harika!</h3>
                         <p style="color:var(--text-muted); margin-top:0.5rem;">Şu an sistemde bekleyen açık arıza bulunmuyor.</p>
                     </div>`;
-                olderTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Kayıt yok</td></tr>';
+                olderTbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">Kayıt yok</td></tr>';
                 countEl.innerText = "0";
                 myTasksSection.style.display = 'none';
                 return;
@@ -1101,7 +1101,7 @@ function fetchOpenFaults() {
                 const renderHeader = (htmlContent) => {
                     if (eskiType === 'row') {
                         const headerTr = document.createElement('tr');
-                        headerTr.innerHTML = `<td colspan="5" style="${htmlContent.style}">${htmlContent.text}</td>`;
+                        headerTr.innerHTML = `<td colspan="10" style="${htmlContent.style}">${htmlContent.text}</td>`;
                         oTbody.appendChild(headerTr);
                     } else {
                         const headerDiv = document.createElement('div');
@@ -1176,8 +1176,11 @@ function getTimestampMs(createdAt) {
 let html5QrCode = null;
 let activeInterventionFaultId = null;
 
+let expectedFaultForQR = null;
+
 // Tıklanan tüm arızalar bu fonksiyonu tetikler, ID önemsizdir!
-function startQROnlyCamera() {
+function startQROnlyCamera(targetFault = null) {
+    expectedFaultForQR = targetFault;
     document.getElementById('qr-modal').style.display = 'flex';
     
     html5QrCode = new Html5Qrcode("qr-reader");
@@ -1230,23 +1233,38 @@ function onScanSuccess(decodedText) {
         }
     }
     
-    // 3. Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
+    // 3. Özel bir arıza için mi kamera açıldı? (Bir arıza kartına tıklandıysa)
+    if (expectedFaultForQR) {
+        const expectedMachine = expectedFaultForQR.machine ? expectedFaultForQR.machine.trim().toLocaleUpperCase('tr-TR') : "";
+        
+        // Makine eşleşiyor mu kontrolü
+        if (expectedMachine && !(machineNameForSearch.includes(expectedMachine) || machineNameForSearch === expectedMachine)) {
+            alert(`❌ Yanlış Makine!\n\nTıkladığınız arıza "${expectedFaultForQR.machine}" makinesine ait.\nOkuttuğunuz karekod ise "${machineNameForSearch}" makinesine ait.\n\nLütfen doğru makinenin karekodunu okutun.`);
+            return;
+        }
+        
+        // Eşleşiyorsa sadece tıklanan o arızayı aç
+        openFaultSelectionModal([expectedFaultForQR]);
+        expectedFaultForQR = null; // Sıfırla
+        return;
+    }
+
+    // 4. Eğer menüden genel 'Manuel QR Okut' dendi ise:
+    // Hafızadaki mevcut AÇIK arızaların içinde makineyi ara
     const matchedFaults = currentOpenFaults.filter(f => {
         if (!f.machine) return false;
         const dbMachine = f.machine.trim().toLocaleUpperCase('tr-TR');
         return machineNameForSearch.includes(dbMachine) || machineNameForSearch === dbMachine;
     });
     
-    // 4. Sonuç değerlendirmesi
+    // 5. Sonuç değerlendirmesi
     if (matchedFaults.length >= 1) {
-        // Yardımcı ol butonlarını da gösterebilmek için tek arıza da olsa bu ekranı açıyoruz
         openFaultSelectionModal(matchedFaults);
     } else {
-        // Hiç arıza yoksa hata ver
         if (isAppSheetLink) {
-            alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nBulunan Makine: "${machineNameForSearch}"\n\nSistem bu makineye ait açık bir arıza bulamadı. Lütfen listedeki makine adıyla eşleştiğinden emin olun.`);
+            alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nBulunan Makine: "${machineNameForSearch}"\n\nSistem bu makineye ait açık bir arıza bulamadı.`);
         } else {
-            alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nKameranın Okuduğu QR Metni: "${scannedText}"\n\nSistem okunan bu kodun içinde açık arızası olan bir makine adı bulamadı.`);
+            alert(`❌ Hata: Bu makinede açık bir arıza bulunamadı!\n\nOkunan Metin: "${scannedText}"`);
         }
     }
 }
