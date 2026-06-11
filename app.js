@@ -3252,6 +3252,34 @@ async function deleteAllAdminMessages() {
     }
 }
 
+async function clearAppCache() {
+    if (confirm("Ön bellek (Cache) tamamen temizlenecek ve uygulamadan çıkış yapılacaktır. Onaylıyor musunuz?")) {
+        try {
+            // 1. Service Worker'ları temizle
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (let registration of registrations) {
+                    await registration.unregister();
+                }
+            }
+            // 2. Tarayıcı önbelleğini (Cache API) temizle
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+            }
+            // 3. LocalStorage verilerini temizle
+            localStorage.clear();
+            
+            // 4. Sayfayı zorla yenile
+            alert("Ön bellek temizlendi. Sayfa yeniden yükleniyor...");
+            window.location.reload(true);
+        } catch (err) {
+            console.error("Ön bellek temizlenirken hata oluştu:", err);
+            alert("Ön bellek temizlenirken bir hata oluştu. Lütfen manuel olarak tarayıcı ayarlarından temizleyin.");
+        }
+    }
+}
+
 
 
 
