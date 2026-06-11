@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --bg-color: #0f172a;
     --surface-color: #1e293b;
     --surface-light: #334155;
@@ -430,3 +430,57 @@ button, .fault-card, tr, select {
     /* Tıklama sırasındaki mavi gölge efektini (highlight) kaldırır */
     -webkit-tap-highlight-color: transparent;
 }
+
+/* Kompakt Kart Görünümü */
+.fault-card.compact {
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+.fault-card.compact .fault-header {
+    width: 100%;
+    margin-bottom: 2px;
+}
+.fault-card.compact .fault-header h3 {
+    font-size: 0.95rem;
+}
+.fault-card.compact .fault-details {
+    font-size: 0.8rem;
+    margin: 0;
+    margin-right: 10px;
+}
+.fault-card.compact .fault-status {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+/* Açılır-Kapanır Liste (Akordeon) Görünümü */
+.fault-card.accordion {
+    padding: 0.6rem 0.8rem;
+}
+.fault-card.accordion .fault-header {
+    margin-bottom: 0.2rem;
+}
+.fault-card.accordion .fault-details {
+    display: none;
+}
+.fault-card.accordion .fault-status {
+    margin-top: 0;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.75rem;
+    display: inline-block;
+}
+.fault-card.accordion::after {
+    content: "▼ Detay ve Müdahale İçin Dokun";
+    display: block;
+    font-size: 0.7rem;
+    color: var(--primary);
+    margin-top: 5px;
+    text-align: right;
+    font-style: italic;
+    opacity: 0.8;
+}
+
