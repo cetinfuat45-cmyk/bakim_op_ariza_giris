@@ -120,24 +120,25 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-            #op-view-settings-modal select option { background-color: #1e293b; color: white; }
-        @keyframes neonBlinkGreen {
-            0%, 100% {
-                box-shadow: 0 0 5px #00FF00, inset 0 0 2px #00FF00;
-                border: 1px solid #00FF00;
+        #op-view-settings-modal select option { background-color: #1e293b; color: white; }
+        @keyframes underlineBlink {
+            0% { 
+                border-bottom-color: #00FF00;
+                text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000, 0 0 8px #00FF00; 
             }
-            50% {
-                box-shadow: 0 0 1px #00FF00, inset 0 0 1px #00FF00;
-                border: 1px solid rgba(0, 255, 0, 0.4);
+            100% { 
+                border-bottom-color: transparent;
+                text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000, 0 0 2px #00FF00; 
             }
         }
         .neon-border-green {
-            animation: neonBlinkGreen 1.5s infinite alternate;
-            border-radius: 6px;
-            padding: 3px 6px;
-            display: inline-block;
+            animation: underlineBlink 0.8s infinite alternate;
             color: #00FF00 !important;
-            text-shadow: 0 0 2px #00FF00;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border-bottom: 2px solid #00FF00;
+            padding-bottom: 1px;
+            display: inline-block;
         }
         @keyframes heartbeat {
             0% { transform: scale(1); }
