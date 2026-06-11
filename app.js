@@ -3087,6 +3087,7 @@ function listenForMessages() {
             const senderNameEl = document.getElementById('message-sender-name');
             const textEl = document.getElementById('message-banner-text');
             const readBtn = document.getElementById('btn-message-read');
+            const replyBtn = document.getElementById('btn-message-reply');
             
             if (activeMsg) {
                 senderNameEl.innerText = activeMsg.sender;
@@ -3113,10 +3114,39 @@ function listenForMessages() {
                 
                 banner.style.display = 'flex';
                 readBtn.onclick = () => markMessageAsRead(activeMsg.id);
+                if(replyBtn) replyBtn.onclick = () => replyToMessage(activeMsg.sender, activeMsg.id);
             } else {
                 banner.style.display = 'none';
             }
         });
+}
+
+function replyToMessage(senderName, msgId) {
+    // Mesajı okundu olarak işaretle (kapat)
+    markMessageAsRead(msgId);
+    
+    // Mesaj gönderme modalını aç
+    openSendMessageModal();
+    
+    // Herkese gönderi kaldır ve sadece gönderen kişiyi seç
+    setTimeout(() => {
+        const allCb = document.getElementById('msg-target-all');
+        if(allCb) {
+            allCb.checked = false;
+            toggleAllMsgTargets(allCb);
+        }
+        
+        const checkboxes = document.querySelectorAll('.msg-target-cb');
+        checkboxes.forEach(cb => {
+            if(cb.value === senderName) {
+                cb.checked = true;
+            } else {
+                cb.checked = false;
+            }
+        });
+        
+        document.getElementById('modal-send-message-text').focus();
+    }, 50);
 }
 
 async function markMessageAsRead(msgId) {
