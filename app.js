@@ -3122,31 +3122,33 @@ function listenForMessages() {
 }
 
 function replyToMessage(senderName, msgId) {
-    // Mesajı okundu olarak işaretle (kapat)
-    markMessageAsRead(msgId);
-    
-    // Mesaj gönderme modalını aç
+    // Mesaj gönderme modalını aç (Senkron olarak HTML'i oluşturur)
     openSendMessageModal();
     
-    // Herkese gönderi kaldır ve sadece gönderen kişiyi seç
-    setTimeout(() => {
-        const allCb = document.getElementById('msg-target-all');
-        if(allCb) {
-            allCb.checked = false;
-            toggleAllMsgTargets(allCb);
+    // Herkese gönderi kaldır ve sadece gönderen kişiyi seç (Senkron işlem)
+    const allCb = document.getElementById('msg-target-all');
+    if(allCb) {
+        allCb.checked = false;
+        toggleAllMsgTargets(allCb);
+    }
+    
+    const checkboxes = document.querySelectorAll('.msg-target-cb');
+    checkboxes.forEach(cb => {
+        if(cb.value === senderName) {
+            cb.checked = true;
+        } else {
+            cb.checked = false;
         }
-        
-        const checkboxes = document.querySelectorAll('.msg-target-cb');
-        checkboxes.forEach(cb => {
-            if(cb.value === senderName) {
-                cb.checked = true;
-            } else {
-                cb.checked = false;
-            }
-        });
-        
-        document.getElementById('modal-send-message-text').focus();
-    }, 50);
+    });
+    
+    // Mobil cihazlarda klavyenin açılabilmesi için focus() işleminin tıklama anında senkron olması gerekir
+    const textArea = document.getElementById('modal-send-message-text');
+    if(textArea) {
+        textArea.focus();
+    }
+    
+    // Mesajı okundu olarak işaretle (kapat) - Firebase isteğini en sona bırak
+    markMessageAsRead(msgId);
 }
 
 async function markMessageAsRead(msgId) {
