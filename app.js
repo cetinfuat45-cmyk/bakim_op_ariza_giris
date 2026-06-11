@@ -1849,6 +1849,7 @@ function showDashboard() {
         document.getElementById('btn-admin-report').style.display = isAdmin ? 'flex' : 'none';
         document.getElementById('btn-admin-export').style.display = isAdmin ? 'flex' : 'none';
         document.getElementById('btn-admin-fetch').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('btn-admin-message-monitor').style.display = isAdmin ? 'flex' : 'none';
         document.getElementById('btn-add-op-menu').style.display = isAdmin ? 'flex' : 'none';
     }
 
@@ -3083,11 +3084,13 @@ function listenForMessages() {
             });
             
             const banner = document.getElementById('message-banner');
+            const senderNameEl = document.getElementById('message-sender-name');
             const textEl = document.getElementById('message-banner-text');
             const readBtn = document.getElementById('btn-message-read');
             
             if (activeMsg) {
-                textEl.innerHTML = `💬 <strong>[${activeMsg.sender}]:</strong> ${activeMsg.text}`;
+                senderNameEl.innerText = activeMsg.sender;
+                textEl.innerText = activeMsg.text;
                 
                 // Eğer banner zaten açık değilse sesi çal (Sürekli çalmaması için)
                 if (banner.style.display === 'none') {
@@ -3132,6 +3135,88 @@ async function markMessageAsRead(msgId) {
     } finally {
         readBtn.innerText = "Okudum";
         readBtn.disabled = false;
+    }
+}
+
+// --- ADMİN MESAJ İZLEME (HAYALET MOD) ---
+async function openAdminMessageMonitor() {
+    const listBody = document.getElementById('admin-message-monitor-list');
+    listBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Mesajlar yükleniyor...</td></tr>';
+    document.getElementById('admin-message-monitor-modal').style.display = 'flex';
+    
+    try {
+        const snapshot = await db.collection('messages')
+            .orderBy('createdAt', 'desc')
+            .limit(100)
+            .get();
+            
+        listBody.innerHTML = '';
+        
+        if(snapshot.empty) {
+            listBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Sistemde kayıtlı mesaj bulunmuyor.</td></tr>';
+            return;
+        }
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const id = doc.id;
+            const dateStr = data.createdAt ? data.createdAt.toDate().toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : 'Bilinmiyor';
+            
+            const targetsStr = (data.targetUsers && data.targetUsers.includes("ALL")) ? '<span style="color:#22c55e; font-weight:bold;">HERKES</span>' : (data.targetUsers ? data.targetUsers.join(', ') : '-');
+            const readByStr = (data.readBy && data.readBy.length > 0) ? data.readBy.join(', ') : '<span style="color:#ef4444;">Kimse Okumadı</span>';
+            
+            listBody.innerHTML += `
+                <tr>
+                    <td style="color:var(--text-muted);">${dateStr}</td>
+                    <td style="font-weight:bold; color:var(--primary);">${data.sender}</td>
+                    <td>${targetsStr}</td>
+                    <td>${data.text}</td>
+                    <td style="font-size:0.8rem; color:var(--text-muted);">${readByStr}</td>
+                    <td>
+                        <button onclick="deleteAdminMessage('${id}')" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">Sil</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (e) {
+        console.error("Mesajlar çekilemedi:", e);
+        listBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">Mesajlar yüklenirken bir hata oluştu.</td></tr>';
+    }
+}
+
+async function deleteAdminMessage(id) {
+    if(confirm("Bu mesajı sistemden tamamen silmek istediğinize emin misiniz? (Alıcıların ekranından da kaybolur)")) {
+        try {
+            await db.collection('messages').doc(id).delete();
+            // Listeyi yenile
+            openAdminMessageMonitor();
+        } catch(e) {
+            alert("Hata oluştu: " + e.message);
+        }
+    }
+}
+
+async function deleteAllAdminMessages() {
+    if(confirm("DİKKAT: Sistemdeki TÜM mesajları silmek üzeresiniz. Bu işlem geri alınamaz. Emin misiniz?")) {
+        try {
+            const snapshot = await db.collection('messages').get();
+            if(snapshot.empty) {
+                alert("Silinecek mesaj bulunmuyor.");
+                return;
+            }
+            
+            const batch = db.batch();
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            alert("Tüm mesajlar başarıyla silindi!");
+            openAdminMessageMonitor(); // Listeyi yenile
+        } catch(e) {
+            console.error("Toplu silme hatası:", e);
+            alert("Hata oluştu: " + e.message);
+        }
     }
 }
 
