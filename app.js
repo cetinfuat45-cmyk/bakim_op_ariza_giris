@@ -625,7 +625,7 @@ function fetchOpenFaults() {
     
     if (myTasksTitle && loggedInOperator) {
         const opName = loggedInOperator.name.toLocaleUpperCase('tr-TR');
-        myTasksTitle.innerHTML = `⚠️ <span class="heartbeat-text">${opName}, BU GÖREVLER SENİ BEKLİYOR!</span>`;
+        myTasksTitle.innerHTML = `<span class="heartbeat-text">${opName}, BU GÖREVLER SENİ BEKLİYOR!</span>`;
     }
 
     todayContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Açık arızalar aranıyor...</p>';
