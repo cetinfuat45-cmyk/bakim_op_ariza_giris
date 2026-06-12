@@ -1,4 +1,4 @@
-﻿async function exportAndCleanClosedFaults() {
+async function exportAndCleanClosedFaults() {
     const btn = document.getElementById('btn-admin-export');
     const oldText = btn.innerHTML;
     if (btn) {
@@ -301,7 +301,7 @@ async function openWeeklyReportModal() {
             const opStats = stats[operatorName] || {};
             let totalMin = 0;
             let totalCount = 0;
-            let rowHtml = `<td style="padding: 10px; border: 1px solid #cbd5e1; font-weight: bold;">${operatorName}</td>`;
+            let rowHtml = `<td style="padding: 10px; border: 1px solid #cbd5e1; font-weight: bold; white-space: nowrap; color: black;">${operatorName}</td>`;
             
             days.forEach(d => {
                 const statVal = opStats[d];
@@ -319,24 +319,26 @@ async function openWeeklyReportModal() {
                 totalMin += mins;
                 totalCount += count;
                 
-                let display = mins > 0 ? (mins >= 60 ? `${Math.floor(mins/60)}s ${mins%60}d` : `${mins}d`) : "-";
-                if (count > 0) {
-                    display += ` <small style="color:#64748b;">(${count} İşlem)</small>`;
+                let display = "-";
+                if (count > 0 || mins > 0) {
+                    let timeStr = mins >= 60 ? `${Math.floor(mins/60)}s ${mins%60}dk` : `${mins}dk`;
+                    display = `(iş:${count}ad-sür:${timeStr})`;
                 }
-                rowHtml += `<td style="padding: 10px; border: 1px solid #cbd5e1; text-align: center;">${display}</td>`;
+                rowHtml += `<td style="padding: 10px; border: 1px solid #cbd5e1; text-align: center; white-space: nowrap; color: black;">${display}</td>`;
             });
             
-            let totalDisplay = totalMin > 0 ? (totalMin >= 60 ? `${Math.floor(totalMin/60)}s ${totalMin%60}d` : `${totalMin}d`) : "0d";
-            if (totalCount > 0) {
-                totalDisplay += ` <small style="color:#64748b;">(${totalCount} İşlem)</small>`;
+            let totalDisplay = "-";
+            if (totalCount > 0 || totalMin > 0) {
+                let timeStr = totalMin >= 60 ? `${Math.floor(totalMin/60)}s ${totalMin%60}dk` : `${totalMin}dk`;
+                totalDisplay = `(iş:${totalCount}ad-sür:${timeStr})`;
             }
-            rowHtml += `<td style="padding: 10px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; background-color: #f1f5f9;">${totalDisplay}</td>`;
+            rowHtml += `<td style="padding: 10px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; background-color: #f1f5f9; white-space: nowrap; color: black;">${totalDisplay}</td>`;
             
             html += `<tr>${rowHtml}</tr>`;
         });
 
         if (html === "") {
-            html = '<tr><td colspan="9" style="text-align:center; padding: 20px;">Bu hafta için henüz kayıt yok.</td></tr>';
+            html = '<tr><td colspan="9" style="text-align:center; padding: 20px; color: black;">Bu hafta için henüz kayıt yok.</td></tr>';
         }
 
         tbody.innerHTML = html;
