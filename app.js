@@ -1770,7 +1770,8 @@ function saveIntervention() {
     // Haftalık istatistikleri güncelle
     allNewLogs.forEach(log => {
         if (log.operator) {
-            updateWeeklyStats(log.operator, log.durationMin || 0);
+            let isHelper = log.actionTaken && log.actionTaken.toLowerCase().includes('yardım');
+            updateWeeklyStats(log.operator, log.durationMin || 0, isHelper);
         }
     });
     
@@ -2832,7 +2833,7 @@ async function autoExportPreviousDayFaults() {
 // ----------------------------------------------------
 // HAFTALIK OPERATÖR ÇALIŞMA SÜRESİ İSTATİSTİĞİ
 // ----------------------------------------------------
-async function updateWeeklyStats(operatorName, durationMin) {
+async function updateWeeklyStats(operatorName, durationMin, isHelper = false) {
     if (!operatorName) return;
     
     // Süre yoksa veya eksi gelirse 0 kabul et
@@ -2885,7 +2886,9 @@ async function updateWeeklyStats(operatorName, durationMin) {
         }
         
         currentData.mins += durationMin;
-        currentData.count += 1; // Her müdahalede işlem sayısını 1 artır
+        if (!isHelper) {
+            currentData.count += 1; // Sadece ana müdahalelerde (kapatan vs.) işlem sayısını artır
+        }
 
         data.stats[opName][todayName] = currentData;
 

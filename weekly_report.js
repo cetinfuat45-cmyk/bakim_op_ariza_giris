@@ -383,7 +383,11 @@ async function syncWeeklyStatsFromArizalar() {
                                 todayStats[opName] = { mins: 0, count: 0 };
                             }
                             todayStats[opName].mins += duration;
-                            todayStats[opName].count += 1;
+                            
+                            let isHelper = inv.actionTaken && inv.actionTaken.toLowerCase().includes('yardım');
+                            if (!isHelper) {
+                                todayStats[opName].count += 1;
+                            }
                             syncCount++;
                         }
                     }
